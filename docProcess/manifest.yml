@@ -1,0 +1,9 @@
+---
+applications:
+- name: lovesdps
+  host: lovesdps-i304296
+  path: ./target/docProcess-0.0.1-SNAPSHOT.jar
+  memory: 1024M
+  instances: 1
+  env:
+    SPRING_PROFILES_DEFAULT: cf
