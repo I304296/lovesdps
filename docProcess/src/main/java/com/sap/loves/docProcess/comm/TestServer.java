@@ -7,8 +7,8 @@ import com.sap.loves.docProcess.api.ApiController;
 import com.sap.loves.docProcess.pojo.Context;
 
 public class TestServer implements IServer {
-	
-	private String url;
+	//Test Server
+	private String url; 
 	private Context context;
 	
 	final static Logger log = LoggerFactory.getLogger(ApiController.class);
