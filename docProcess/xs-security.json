@@ -1,0 +1,19 @@
+{
+  "xsappname": "lovesdps",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Ops",
+      "description": "Operation"
+    }
+  ],
+  "role-templates": [
+      {
+      "name": "Ops",
+      "description": "Required to operate",
+      "scope-references"     : [
+        "$XSAPPNAME.Ops"
+      ]
+    }
+  ]
+}

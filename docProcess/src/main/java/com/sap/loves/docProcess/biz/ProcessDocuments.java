@@ -28,6 +28,11 @@ import com.sap.loves.docProcess.pojo.Message;
 import com.sap.loves.docProcess.pojo.RateConfirmation;
 import com.sap.loves.docProcess.pojo.Status;
 
+import com.sap.loves.docProcess.utility.DestinationProxy;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
 public class ProcessDocuments {
 
 	final String statusCodeInitiated = "0";
@@ -331,6 +336,8 @@ public class ProcessDocuments {
 		log.info("Log No." + String.valueOf(++context.counter) + ":Get Blur score");
 		// Set Hystrix properties
 		HystrixCommand.Setter config = getHystrixConfig();
+		String blurScoreAPIURL = getblurScoreAPIURL();
+		log.info("Log No." + String.valueOf(++context.counter) + ":Target URL:" + blurScoreAPIURL);
 		try {
 			message += "Blur Page:";
 			double thrshold = 2000.0; // Todo: Call method to get threshold from destination
@@ -341,7 +348,7 @@ public class ProcessDocuments {
 				// Call Blur service
 				context = new RemoteCall(config,
 						new BlurScoreService(context,
-								"https://blurdetectionpython-timely-wallaby.cfapps.us10.hana.ondemand.com/"),
+								blurScoreAPIURL),
 						context).execute();
 				// If image score less than threshold -> consider image blurry
 				if (context.getLoad().getDocuments()[context.getIndex()].getPages()[pageIndex]
@@ -377,6 +384,22 @@ public class ProcessDocuments {
 			context = updateStatus(context);
 		}
 		return context;
+	}
+
+	private String getblurScoreAPIURL() {
+		// TODO Auto-generated method stub
+		String targetURL = "";
+		DestinationProxy dp = new DestinationProxy("BlurScoreDest");
+		//return dp.getProperties().toString();
+		//JSONObject destConfig = new JSONObject(IOUtils.toString(in, StandardCharsets.UTF_8));
+		try {
+			targetURL =  dp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			log.error("Destination not configured:" + e.getMessage());
+			e.printStackTrace();
+		}
+		return targetURL;
 	}
 
 	public Context enhanceContrast(Context context) {
