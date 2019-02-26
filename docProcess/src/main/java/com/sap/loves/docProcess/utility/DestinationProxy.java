@@ -29,10 +29,12 @@ public class DestinationProxy {
 	final static Logger log = LoggerFactory.getLogger(DestinationProxy.class);
 	final String DestinationAPIPath = "/destination-configuration/v1/destinations/";
 	private String DestinationName;
+	private JSONObject properties;
 
 	public DestinationProxy(String DestinationName) {
 		super();
 		this.DestinationName = DestinationName;
+		fetchAndSetProperties();
 	}
 
 	public String getDestinationName() {
@@ -43,7 +45,7 @@ public class DestinationProxy {
 		this.DestinationName = DestinationName;
 	}
 	
-	public JSONObject getProperties() {
+	public void fetchAndSetProperties() {
 		JSONObject properties = new JSONObject();
 		try {
 		String DestApiUri = getDestinationUri()+DestinationAPIPath+this.getDestinationName();
@@ -68,7 +70,34 @@ public class DestinationProxy {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} 
-		return properties;
+		this.properties = properties;
+	}
+	public JSONObject getProperties() {
+/*		JSONObject properties = new JSONObject();
+		try {
+		String DestApiUri = getDestinationUri()+DestinationAPIPath+this.getDestinationName();
+		log.info("Dest API URL:" + DestApiUri);
+		URL url;
+		
+			url = new URL(DestApiUri);
+		
+		HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+		CompositeAccessToken accessToken = getAccessToken();
+		log.info("Access Token:" + accessToken.getValue());
+		urlConnection.setRequestProperty("Authorization", "Bearer " + accessToken);
+		urlConnection.setConnectTimeout(10000);
+		urlConnection.setReadTimeout(60000);
+		log.info("Calling Dest API..."); 
+		urlConnection.connect();
+		InputStream in = urlConnection.getInputStream();
+		properties = new JSONObject(IOUtils.toString(in, StandardCharsets.UTF_8));
+		log.info("Dest Configuration:" + properties.toString());
+		
+		} catch (IOException | JSONException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} */
+		return this.properties;
 	}
 	
 	private String getClientOAuthToken() throws Exception {

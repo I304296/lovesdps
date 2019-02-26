@@ -147,16 +147,49 @@ public class ProcessDocuments {
 		return context;
 	}
 
-	public HystrixCommand.Setter getHystrixConfig() {
+	public HystrixCommand.Setter getHystrixConfig(String DestinationName) {
+		
+		//Initialize with Default Value
+		int ExecutionTimeoutInMilliseconds = 180000;
+		int CircuitBreakerSleepWindowInMilliseconds = 4000;
+		boolean CircuitBreakerEnabled = true;
+		int CircuitBreakerRequestVolumeThreshold = 1;
+		boolean FallbackEnabled = true;
+		
+		log.info("Inside getHystrixConfig. DestinationName="+DestinationName);
+		
+		//If destination name is supplied then get from destination
+		if(DestinationName.length()>0 || !DestinationName.equals("default")) {
+			DestinationProxy dp = new DestinationProxy(DestinationName);
+			try {
+				ExecutionTimeoutInMilliseconds =  Integer.parseInt(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.ExecutionTimeoutInMilliseconds"));
+				CircuitBreakerSleepWindowInMilliseconds = Integer.parseInt(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.CircuitBreakerSleepWindowInMilliseconds"));
+				CircuitBreakerRequestVolumeThreshold = Integer.parseInt(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.CircuitBreakerRequestVolumeThreshold"));
+				CircuitBreakerEnabled = Boolean.parseBoolean(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.CircuitBreakerEnabled"));
+				FallbackEnabled = Boolean.parseBoolean(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.FallbackEnabled"));
+				
+				log.info("ExecutionTimeoutInMilliseconds:"+String.valueOf(ExecutionTimeoutInMilliseconds)+
+						"|CircuitBreakerSleepWindowInMilliseconds:"+String.valueOf(CircuitBreakerSleepWindowInMilliseconds)+
+						"|CircuitBreakerRequestVolumeThreshold:"+String.valueOf(CircuitBreakerRequestVolumeThreshold)+
+						"|CircuitBreakerEnabled:"+String.valueOf(CircuitBreakerEnabled)+
+						"|FallbackEnabled:"+String.valueOf(FallbackEnabled));
+			
+			} catch (JSONException e) {
+				// TODO Auto-generated catch block
+				log.error("Destination not configured:" + e.getMessage());
+				e.printStackTrace();
+			}
+			
+		}
 		HystrixCommand.Setter config = HystrixCommand.Setter
 				.withGroupKey(HystrixCommandGroupKey.Factory.asKey("RemoteServiceGroupThreadPool"));
 		HystrixCommandProperties.Setter commandProperties = HystrixCommandProperties.Setter();
-		commandProperties.withExecutionTimeoutInMilliseconds(1000 * 30 * 5);
-		commandProperties.withCircuitBreakerSleepWindowInMilliseconds(4000);
+		commandProperties.withExecutionTimeoutInMilliseconds(ExecutionTimeoutInMilliseconds);
+		commandProperties.withCircuitBreakerSleepWindowInMilliseconds(CircuitBreakerSleepWindowInMilliseconds);
 		commandProperties.withExecutionIsolationStrategy(HystrixCommandProperties.ExecutionIsolationStrategy.THREAD);
-		commandProperties.withCircuitBreakerEnabled(true);
-		commandProperties.withCircuitBreakerRequestVolumeThreshold(1);
-		commandProperties.withFallbackEnabled(true);
+		commandProperties.withCircuitBreakerEnabled(CircuitBreakerEnabled);
+		commandProperties.withCircuitBreakerRequestVolumeThreshold(CircuitBreakerRequestVolumeThreshold);
+		commandProperties.withFallbackEnabled(FallbackEnabled);
 
 		config.andCommandPropertiesDefaults(commandProperties);
 		config.andThreadPoolPropertiesDefaults(HystrixThreadPoolProperties.Setter().withMaxQueueSize(10).withCoreSize(4)
@@ -169,7 +202,7 @@ public class ProcessDocuments {
 		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Status Data");
 		try {
 			// Set Hystrix properties
-			HystrixCommand.Setter config = getHystrixConfig();
+			HystrixCommand.Setter config = getHystrixConfig("default");
 			context = new RemoteCall(config,
 					new HANAService(context, "https://hana-odata-server.com/", "StatusEntity", "POST"), context)
 							.execute();
@@ -186,7 +219,7 @@ public class ProcessDocuments {
 		log.info("Log No." + String.valueOf(++context.counter) + ": Check Status Data");
 		try {
 			// Set Hystrix properties
-			HystrixCommand.Setter config = getHystrixConfig();
+			HystrixCommand.Setter config = getHystrixConfig("default");
 			context = new RemoteCall(config,
 					new HANAService(context, "https://hana-odata-server.com/", "StatusEntity", "GET"), context)
 							.execute();
@@ -216,7 +249,7 @@ public class ProcessDocuments {
 		log.info("Log No." + String.valueOf(++context.counter) + ": Updating Status Data");
 		try {
 			// Set Hystrix properties
-			HystrixCommand.Setter config = getHystrixConfig();
+			HystrixCommand.Setter config = getHystrixConfig("default");
 			context = new RemoteCall(config,
 					new HANAService(context, "https://hana-odata-server.com/", "StatusEntity", "PATCH"), context)
 							.execute();
@@ -262,7 +295,7 @@ public class ProcessDocuments {
 		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Rate Confirmation Data");
 		try {
 			// Set Hystrix properties
-			HystrixCommand.Setter config = getHystrixConfig();
+			HystrixCommand.Setter config = getHystrixConfig("default");
 			context = new RemoteCall(config,
 					new HANAService(context, "https://hana-odata-server.com/", "RCEntity", "POST"), context).execute();
 
@@ -316,7 +349,7 @@ public class ProcessDocuments {
 		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Bill of Lading Data");
 		try {
 			// Set Hystrix properties
-			HystrixCommand.Setter config = getHystrixConfig();
+			HystrixCommand.Setter config = getHystrixConfig("default");
 			context = new RemoteCall(config,
 					new HANAService(context, "https://hana-odata-server.com/", "BOLEntity", "POST"), context).execute();
 
@@ -335,7 +368,7 @@ public class ProcessDocuments {
 		String message = "";
 		log.info("Log No." + String.valueOf(++context.counter) + ":Get Blur score");
 		// Set Hystrix properties
-		HystrixCommand.Setter config = getHystrixConfig();
+		HystrixCommand.Setter config = getHystrixConfig("BlurScoreDest");
 		String blurScoreAPIURL = getblurScoreAPIURL();
 		log.info("Log No." + String.valueOf(++context.counter) + ":Target URL:" + blurScoreAPIURL);
 		try {
@@ -411,7 +444,7 @@ public class ProcessDocuments {
 		String message = "";
 		log.info("Log No." + String.valueOf(++context.counter) + ": Contrast Enhancement");
 		// Set Hystrix properties
-		HystrixCommand.Setter config = getHystrixConfig();
+		HystrixCommand.Setter config = getHystrixConfig("default");
 		try {
 			for (pageIndex = 0; pageIndex < context.getLoad().getDocuments()[context.getIndex()]
 					.getPages().length; pageIndex++) {
@@ -449,7 +482,7 @@ public class ProcessDocuments {
 		log.info("Log No." + String.valueOf(++context.counter) + ": Converting to PDF");
 		try {
 			// Set Hystrix properties
-			HystrixCommand.Setter config = getHystrixConfig();
+			HystrixCommand.Setter config = getHystrixConfig("default");
 			context = new RemoteCall(config,
 					new PDFConvertService(context,
 							"https://imagetopdfpython-funny-chimpanzee.cfapps.us10.hana.ondemand.com/"),
@@ -517,7 +550,7 @@ public class ProcessDocuments {
 				log.info("Log No." + String.valueOf(context.counter) + " Stitch PDF");
 				try {
 					// Set Hystrix properties
-					HystrixCommand.Setter config = getHystrixConfig();
+					HystrixCommand.Setter config = getHystrixConfig("default");
 					context = new RemoteCall(config,
 							new PDFStitchingService(context,
 									"https://pdfstitchingpython-thankful-bilby.cfapps.us10.hana.ondemand.com/"),
