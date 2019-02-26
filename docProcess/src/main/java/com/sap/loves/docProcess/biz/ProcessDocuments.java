@@ -146,7 +146,54 @@ public class ProcessDocuments {
 
 		return context;
 	}
+	//Method Overload
+	public HystrixCommand.Setter getHystrixConfig(DestinationProxy dp) {
+		
+		//Initialize with Default Value
+		int ExecutionTimeoutInMilliseconds = 180000;
+		int CircuitBreakerSleepWindowInMilliseconds = 4000;
+		boolean CircuitBreakerEnabled = true;
+		int CircuitBreakerRequestVolumeThreshold = 1;
+		boolean FallbackEnabled = true;
+		
+		
+		//If destination name is supplied then get from destination
+		try {
+				ExecutionTimeoutInMilliseconds =  Integer.parseInt(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.ExecutionTimeoutInMilliseconds"));
+				CircuitBreakerSleepWindowInMilliseconds = Integer.parseInt(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.CircuitBreakerSleepWindowInMilliseconds"));
+				CircuitBreakerRequestVolumeThreshold = Integer.parseInt(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.CircuitBreakerRequestVolumeThreshold"));
+				CircuitBreakerEnabled = Boolean.parseBoolean(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.CircuitBreakerEnabled"));
+				FallbackEnabled = Boolean.parseBoolean(dp.getProperties().getJSONObject("destinationConfiguration").getString("hystrix.FallbackEnabled"));
+				
+				log.info("ExecutionTimeoutInMilliseconds:"+String.valueOf(ExecutionTimeoutInMilliseconds)+
+						"|CircuitBreakerSleepWindowInMilliseconds:"+String.valueOf(CircuitBreakerSleepWindowInMilliseconds)+
+						"|CircuitBreakerRequestVolumeThreshold:"+String.valueOf(CircuitBreakerRequestVolumeThreshold)+
+						"|CircuitBreakerEnabled:"+String.valueOf(CircuitBreakerEnabled)+
+						"|FallbackEnabled:"+String.valueOf(FallbackEnabled));
+			
+			} catch (JSONException e) {
+				// TODO Auto-generated catch block
+				log.error("Destination not configured:" + e.getMessage());
+				e.printStackTrace();
+			}
+			
+		
+		HystrixCommand.Setter config = HystrixCommand.Setter
+				.withGroupKey(HystrixCommandGroupKey.Factory.asKey("RemoteServiceGroupThreadPool"));
+		HystrixCommandProperties.Setter commandProperties = HystrixCommandProperties.Setter();
+		commandProperties.withExecutionTimeoutInMilliseconds(ExecutionTimeoutInMilliseconds);
+		commandProperties.withCircuitBreakerSleepWindowInMilliseconds(CircuitBreakerSleepWindowInMilliseconds);
+		commandProperties.withExecutionIsolationStrategy(HystrixCommandProperties.ExecutionIsolationStrategy.THREAD);
+		commandProperties.withCircuitBreakerEnabled(CircuitBreakerEnabled);
+		commandProperties.withCircuitBreakerRequestVolumeThreshold(CircuitBreakerRequestVolumeThreshold);
+		commandProperties.withFallbackEnabled(FallbackEnabled);
 
+		config.andCommandPropertiesDefaults(commandProperties);
+		config.andThreadPoolPropertiesDefaults(HystrixThreadPoolProperties.Setter().withMaxQueueSize(10).withCoreSize(4)
+				.withQueueSizeRejectionThreshold(10));
+		return config;
+	}
+	//Method Overload
 	public HystrixCommand.Setter getHystrixConfig(String DestinationName) {
 		
 		//Initialize with Default Value
@@ -367,9 +414,23 @@ public class ProcessDocuments {
 		int pageIndex = 0;
 		String message = "";
 		log.info("Log No." + String.valueOf(++context.counter) + ":Get Blur score");
-		// Set Hystrix properties
-		HystrixCommand.Setter config = getHystrixConfig("BlurScoreDest");
-		String blurScoreAPIURL = getblurScoreAPIURL();
+		
+		String blurScoreAPIURL = "";
+		
+		//Get Destination - BlurScoreDest
+		DestinationProxy dp = new DestinationProxy("BlurScoreDest");
+		
+		try {
+			//Get target URL
+			blurScoreAPIURL =  dp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			log.error("Destination not configured:" + e.getMessage());
+			e.printStackTrace();
+		}
+		// Set Hystrix properties		
+		HystrixCommand.Setter config = getHystrixConfig(dp);
+		 
 		log.info("Log No." + String.valueOf(++context.counter) + ":Target URL:" + blurScoreAPIURL);
 		try {
 			message += "Blur Page:";
