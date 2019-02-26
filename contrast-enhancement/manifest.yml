@@ -1,0 +1,6 @@
+---
+applications:
+- memory: 1024MB
+  disk_quota: 1024MB
+  random-route: true
+  name: dps-contrast-enhancement-dev

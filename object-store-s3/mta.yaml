@@ -1,0 +1,20 @@
+ID: ObjectStoreS3
+_schema-version: '3.1'
+version: 0.0.1
+modules:
+  - name: dps-object-store-s3-dev
+    type: nodejs
+    path: dps-object-store-s3-dev
+    provides:
+      - name: object-store-s3-api
+        properties:
+          url: '${default-url}'
+    requires:
+      - name: objectstore
+      
+resources:
+  - name: objectstore
+    type: objectstore
+    parameters:
+      service: objectstore
+      service-plan: s3-standard

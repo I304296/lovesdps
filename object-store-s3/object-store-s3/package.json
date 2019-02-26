@@ -1,0 +1,32 @@
+{
+	"dependencies": {
+		"express": "^4.7.2",
+		"cfenv": "^1.0.4",
+		"request": "2.88.0",
+		"@sap/xsenv": "^1.2.9",
+		"@sap/xssec": "^2.1.15",
+		"async": "^2.6.1",
+		"aws-sdk": "2.318.0",
+		"multer": "^1.3.1",
+		"multer-s3": "^2.7.0"
+	},
+	"devDependencies": {
+		"gulp": "3.9.1",
+		"gulp-replace": "0.5.4",
+		"jasmine-reporters": "2.1.1",
+		"gulp-jasmine": "2.4.1",
+		"gulp-istanbul": "1.1.1"
+	},
+	"files": [],
+	"main": "server.js",
+	"name": "dps-object-store-s3-dev",
+	"scripts": {
+		"start": "node server.js",
+		"test": "node ./node_modules/gulp/bin/gulp test",
+		"test-coverage": "node ./node_modules/gulp/bin/gulp test-coverage"
+	},
+	"engines": {
+		"node": "8.x"
+	},
+	"version": "1.0.0"
+}

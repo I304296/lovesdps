@@ -1,0 +1,5 @@
+Flask
+opencv-python
+img2pdf
+pdf2image
+Requests
