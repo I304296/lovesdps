@@ -1,0 +1,14 @@
+---
+applications:
+- name: dest
+  host: dest-dev
+  path: ./target/destdemo1-0.0.1-SNAPSHOT.jar
+  memory: 1024M
+  instances: 1
+  env:
+    SPRING_PROFILES_DEFAULT: cf
+    SAP_JWT_TRUST_ACL: '[{"clientid" : "*", "identityzone" : "*"}]'
+  services:
+    - dps-xsuaa
+    - dps-dest
+    - dps-applogger
