@@ -9,13 +9,15 @@ public class Context {
 	private Status statusDBRecord;
 	private RateConfirmation rc;
     private BillOfLading bol;
-	
+    private boolean exist;
+
 	public Context() {
 		//Default constructor		
 	}
 	
 	public Context(int index) {
 		this.index = index;
+		this.exist = false;
 		//Set dummy statusDB record;
 		setStatusDBRecord(new Status(
 				"",
@@ -84,6 +86,14 @@ public class Context {
 
 	public void setPageIndex(int pageIndex) {
 		this.pageIndex = pageIndex;
+	}
+	
+	public boolean isExist() {
+		return exist;
+	}
+
+	public void setExist(boolean exist) {
+		this.exist = exist;
 	}
 
 }

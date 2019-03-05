@@ -49,22 +49,22 @@ public class DestinationProxy {
 		JSONObject properties = new JSONObject();
 		try {
 		String DestApiUri = getDestinationUri()+DestinationAPIPath+this.getDestinationName();
-		log.info("Dest API URL:" + DestApiUri);
+//		log.info("Dest API URL:" + DestApiUri);
 		URL url;
 		
 			url = new URL(DestApiUri);
 		
 		HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
 		CompositeAccessToken accessToken = getAccessToken();
-		log.info("Access Token:" + accessToken.getValue());
+//		log.info("Access Token:" + accessToken.getValue());
 		urlConnection.setRequestProperty("Authorization", "Bearer " + accessToken);
 		urlConnection.setConnectTimeout(10000);
 		urlConnection.setReadTimeout(60000);
-		log.info("Calling Dest API..."); 
+//		log.info("Calling Dest API..."); 
 		urlConnection.connect();
 		InputStream in = urlConnection.getInputStream();
 		properties = new JSONObject(IOUtils.toString(in, StandardCharsets.UTF_8));
-		log.info("Dest Configuration:" + properties.toString());
+//		log.info("Dest Configuration:" + properties.toString());
 		
 		} catch (IOException | JSONException e) {
 			// TODO Auto-generated catch block
@@ -138,12 +138,12 @@ public class DestinationProxy {
 		JSONObject connectivityCredentials = getServiceCredentials("destination");
 		String clientId = connectivityCredentials.getString("clientid");
 		String clientSecret = connectivityCredentials.getString("clientsecret");
-		log.info("clientid:"+clientId+"clientsecret:"+clientSecret);
+//		log.info("clientid:"+clientId+"clientsecret:"+clientSecret);
 		// Make request to UAA to retrieve JWT token
 		JSONObject xsuaaCredentials = getServiceCredentials("xsuaa");
 		URI xsUaaUri = new URI(xsuaaCredentials.getString("url"));
 
-		log.info("xsUaaUri:"+xsUaaUri);
+//		log.info("xsUaaUri:"+xsUaaUri);
 		
 		UaaContextFactory factory = UaaContextFactory.factory(xsUaaUri).authorizePath("/oauth/authorize")
 				.tokenPath("/oauth/token");
@@ -152,10 +152,10 @@ public class DestinationProxy {
 		tokenRequest.setGrantType(GrantType.CLIENT_CREDENTIALS);
 		tokenRequest.setClientId(clientId);
 		tokenRequest.setClientSecret(clientSecret);
-		log.info("Calling XSUAA:Authenticating...");
+//		log.info("Calling XSUAA:Authenticating...");
 		UaaContext xsUaaContext = factory.authenticate(tokenRequest);
-		log.info("xsUaa:"+xsUaaContext.getToken().getValue());
-		log.info("xsUaa:"+xsUaaContext.getToken().getIdTokenValue());
+//		log.info("xsUaa:"+xsUaaContext.getToken().getValue());
+//		log.info("xsUaa:"+xsUaaContext.getToken().getIdTokenValue());
 		
 		token = xsUaaContext.getToken();
 		}catch(JSONException | URISyntaxException e) {

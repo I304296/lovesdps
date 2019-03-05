@@ -14,11 +14,13 @@ import com.sap.loves.docProcess.pojo.Context;
 
 public class PDFStitchingService implements IServer {
 	private String url;
+	private String object_store_api;
 	private Context context;
 	final static Logger log = LoggerFactory.getLogger(ApiController.class);
 
-	public PDFStitchingService(Context context, String url) {
+	public PDFStitchingService(Context context, String url, String object_store_api) {
 		this.context = context;
+		this.object_store_api = object_store_api;
 		this.url = url;
 	}
 
@@ -40,7 +42,7 @@ public class PDFStitchingService implements IServer {
 		log.info("Log No." + String.valueOf(context.counter) + " files: " + files);
 		log.info("Log No." + String.valueOf(context.counter) + " pdf name: " + stitchedPdfName);
 
-		String requestJson = "{\"outputname\": \"" + stitchedPdfName + "\", \"files\": " + files + "}";
+		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"outputname\": \"" + stitchedPdfName + "\", \"files\": " + files + "}";
 
 		log.info("Log No." + String.valueOf(context.counter) + " payload: " + requestJson);
 

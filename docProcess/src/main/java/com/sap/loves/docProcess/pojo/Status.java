@@ -1,5 +1,9 @@
 package com.sap.loves.docProcess.pojo;
 
+import javax.xml.bind.annotation.XmlRootElement;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+@XmlRootElement
 public class Status {
 	private String GUID;
 	private String loadNo;
@@ -31,13 +35,14 @@ public class Status {
 		  this.status = status;		
 		  this.statusDescription = statusDescription;
 	}
-
+	
+    @JsonProperty("GUID")
 	public String getGUID() {
 		return GUID;
 	}
 
-	public void setGUID(String gUID) {
-		GUID = gUID;
+	public void setGUID(String GUID) {
+		this.GUID = GUID;
 	}
 
 	public String getLoadNo() {

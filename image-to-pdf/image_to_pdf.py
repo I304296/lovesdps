@@ -22,7 +22,8 @@ def img_to_pdf():
     request_json = request.get_json()
     pages = request_json.get('pages')
     filename = request_json.get('filename')
-    url = request_json.get('object_store_api')
+    api = request_json.get('object_store_api')
+    upload_object_path = '/api/uploadObject?path=TESTING/'
 
     pagescontent = []
     for page in pages:        
@@ -35,7 +36,7 @@ def img_to_pdf():
 
     file = open(filename + '.pdf', 'rb')
     files = {'file': file}
-    res = requests.post(url, files=files)
+    res = requests.post(api + upload_object_path, files=files)
     return str(res.status_code)
 
 if __name__ == '__main__':

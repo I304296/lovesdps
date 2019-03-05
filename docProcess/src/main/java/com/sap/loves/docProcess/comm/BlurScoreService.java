@@ -35,6 +35,8 @@ public class BlurScoreService implements IServer {
 		requestJson += base64content + "\"}";
 
 		HttpEntity<String> entity = new HttpEntity<String>(requestJson, headers);
+		
+//		log.info("Log No." + String.valueOf(context.counter) + " Blur Score API: " + url);
 
 		try {
 			response += restTemplate.postForObject(url, entity, String.class);
@@ -46,8 +48,6 @@ public class BlurScoreService implements IServer {
 //		log.info("Log No." + String.valueOf(context.counter) + " Blurness Score: "+ score +" Doc Index: "+String.valueOf(context.getIndex())+" Page Index: "+String.valueOf(context.getPageIndex()));
 		
 		context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setBlurScore(score);
-
-		// update context
 		return this.context;
 	}
 

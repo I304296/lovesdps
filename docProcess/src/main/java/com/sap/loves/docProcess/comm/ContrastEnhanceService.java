@@ -4,7 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import com.sap.loves.docProcess.api.ApiController;
@@ -27,33 +30,45 @@ public class ContrastEnhanceService implements IServer {
 		String base64content = context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].getContent();
 		//String base64content = context.getLoad().getDocuments()[0].getPages()[0].getContent();
 		// Call Contrast service using RestTemplate, get enhanced image and update context
-		String response = "";
-		String requestJson = "{\"alpha\": 1.5, \"img\":\"";
+	
+		String requestJson = "{\"contrast_threshold\": 2, \"img\":\"";
 		RestTemplate restTemplate = new RestTemplate();
 
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_JSON);
 		requestJson += base64content + "\"}";
 
-		HttpEntity<String> entity = new HttpEntity<String>(requestJson, headers);
-
+		HttpEntity<String> request = new HttpEntity<String>(requestJson, headers);
+		ResponseEntity<String> response = null;
+		
 		try {
-			response += restTemplate.postForObject(url, entity, String.class);
+			response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 		} catch (RuntimeException e) {
 			log.error("Log No." + String.valueOf(context.counter) + " " +  e.getMessage());
 		}
-
-		context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setContent(response);
-//		log.info("Log No." + String.valueOf(context.counter) + " Image Doc Index: "+String.valueOf(context.getIndex())+" Page Index: "+String.valueOf(context.getPageIndex()) + " has been enahnced" );
 		
-		return context;
+		if(response.getStatusCode() == HttpStatus.OK) {
+//			log.info("Log No." + String.valueOf(context.counter) + " Image Doc Index: "+String.valueOf(context.getIndex())+" Page Index: "+String.valueOf(context.getPageIndex()) + " has been enahnced to: " + response.getBody());
+			context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setContent(response.getBody());
+			return context;
+		}
+		
+		log.error("Log No." + String.valueOf(context.counter) + " Failed to enchance the image. Doc Index: "+ String.valueOf(context.getIndex()) + " Page Index: " + String.valueOf(context.getPageIndex()));
+		return updateStatus(context);
 	}
 
 	@Override
 	public Context fallBack() {
 		// Default implementation
-		log.info("Log No." + String.valueOf(context.counter) + " Failed to enchance the image. Doc Index: "+String.valueOf(context.getIndex())+" Page Index: "+String.valueOf(context.getPageIndex()));
-
+		log.error("Log No." + String.valueOf(context.counter) + " Failed to enchance the image. Doc Index: "+ String.valueOf(context.getIndex()) + " Page Index: " + String.valueOf(context.getPageIndex()));
+		return updateStatus(context);
+	}
+	
+	public Context updateStatus(Context context) {
+		String statusCode = "2";
+		String statusDescription = "Contrast Enhancement Failed";
+		context.getStatus().setStatus(statusCode);
+		context.getStatus().setStatusDescription(statusDescription);
 		return context;
 	}
 

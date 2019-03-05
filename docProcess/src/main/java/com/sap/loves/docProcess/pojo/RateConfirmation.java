@@ -1,12 +1,14 @@
 package com.sap.loves.docProcess.pojo;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class RateConfirmation {
-	
-	private String GUID;        //key
-	private String loadNo;      //key
-	private String debtorName;  //key
-	private String date;        //key
-	
+
+	private String GUID; // key
+	private String loadNo; // key
+	private String debtorName; // key
+	private String date; // key
+
 	private String documentConfidence;
 	private String amount;
 	private String amountML;
@@ -26,19 +28,19 @@ public class RateConfirmation {
 	private String shipToConfidence;
 	private String shipFromML;
 	private String shipFromConfidence;
-	
+
 	public RateConfirmation() {
-		//Default Constructor
+		// Default Constructor
 	}
-	
-	public RateConfirmation(String gUID, String loadNo, String debtorName, String date, String documentConfidence,
+
+	public RateConfirmation(String GUID, String loadNo, String debtorName, String date, String documentConfidence,
 			String amount, String amountML, String amountConfidence, String carrierName, String carrierNameML,
 			String carrierNameConfidence, String loadNoML, String loadNoConfidence, String debtorNameML,
 			String debtorNameConfidence, String receiverNameML, String receiverNameConfidence, String shipperNameML,
 			String shipperNameConfidence, String shipToML, String shipToConfidence, String shipFromML,
 			String shipFromConfidence) {
 		super();
-		GUID = gUID;
+		this.GUID = GUID;
 		this.loadNo = loadNo;
 		this.debtorName = debtorName;
 		this.date = date;
@@ -63,14 +65,13 @@ public class RateConfirmation {
 		this.shipFromConfidence = shipFromConfidence;
 	}
 
-
-
+	@JsonProperty("GUID")
 	public String getGUID() {
 		return GUID;
 	}
 
-	public void setGUID(String gUID) {
-		GUID = gUID;
+	public void setGUID(String GUID) {
+		this.GUID = GUID;
 	}
 
 	public String getLoadNo() {
@@ -248,7 +249,5 @@ public class RateConfirmation {
 	public void setShipFromConfidence(String shipFromConfidence) {
 		this.shipFromConfidence = shipFromConfidence;
 	}
-	
-	
-	
+
 }
