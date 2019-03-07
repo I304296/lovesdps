@@ -14,11 +14,15 @@ import com.netflix.hystrix.HystrixCommandGroupKey;
 import com.netflix.hystrix.HystrixCommandProperties;
 import com.netflix.hystrix.HystrixThreadPoolProperties;
 import com.sap.loves.docProcess.api.ApiController;
+import com.sap.loves.docProcess.comm.BillOfLadingHANAService;
 import com.sap.loves.docProcess.comm.BlurScoreService;
 import com.sap.loves.docProcess.comm.ContrastEnhanceService;
 import com.sap.loves.docProcess.comm.HANAService;
+import com.sap.loves.docProcess.comm.MISCStoreService;
 import com.sap.loves.docProcess.comm.PDFConvertService;
 import com.sap.loves.docProcess.comm.PDFStitchingService;
+import com.sap.loves.docProcess.comm.PDFStoreService;
+import com.sap.loves.docProcess.comm.RateConfirmationHANAService;
 import com.sap.loves.docProcess.comm.RemoteCall;
 import com.sap.loves.docProcess.comm.TestServer;
 import com.sap.loves.docProcess.pojo.BillOfLading;
@@ -53,6 +57,7 @@ public class ProcessDocuments {
 	private DestinationProxy objectStoreDp;
 	private DestinationProxy imageToPdfDp;
 	private DestinationProxy pdfStitchingDp;
+	private DestinationProxy fileStoreDp;
 
 	private String hanaApi = "";
 	private String blurDetectionApi = "";
@@ -60,12 +65,14 @@ public class ProcessDocuments {
 	private String objectStoreApi = "";
 	private String imageToPdfApi = "";
 	private String pdfStitchingApi = "";
+	private String fileStoreApi = "";
 
 	private HystrixCommand.Setter hanaHystrixConfig;
 	private HystrixCommand.Setter blurDetectionHystrixConfig;
 	private HystrixCommand.Setter contrastEnhancementHystrixConfig;
 	private HystrixCommand.Setter imageToPdfHystrixConfig;
 	private HystrixCommand.Setter pdfStitchingHystrixConfig;
+	private HystrixCommand.Setter fileStoreHystrixConfig;
 
 	final static Logger log = LoggerFactory.getLogger(ApiController.class);
 
@@ -76,6 +83,7 @@ public class ProcessDocuments {
 
 		try {
 			this.load = load;
+			int bolCounter = 1;
 			for (int i = 0; i < load.getDocuments().length; i++) {
 				// Initialize Context data
 				Context ctx = new Context(i);
@@ -83,101 +91,66 @@ public class ProcessDocuments {
 				ctx.counter = 0;
 				ctx.setExist(false);
 
-				// Do processing logic for the document
-				// 1. Save Load status data
-				CompletableFuture.supplyAsync(() -> prepareStatusData(ctx), ioBound)
+				// Skip Document Process for MISC files and send them to object store directly
+				if (load.getDocuments()[i].getDocumentType().equals("MISC")) {
+					String filename = load.getDocuments()[i].getPages()[0].getDocumentFormat();
+					Context ctx1 = new Context(i);
+					ctx1.setLoad(load);
+					ctx1 = new RemoteCall(fileStoreHystrixConfig, new MISCStoreService(ctx1, fileStoreApi, objectStoreApi, filename),
+							ctx1).execute();
+					break;
+				}
+
+				if (load.getDocuments()[i].getDocumentType().equals("BOL")) {
+					ctx.setBolCounter(bolCounter++);
+				}
+				CompletableFuture.supplyAsync(() -> prepareRCData(ctx), ioBound)
+						.thenApply(contextData -> prepareBOLData(contextData))
+						.thenApply(contextData -> prepareStatusData(contextData))
 						.thenApply(contextData -> saveStatusData(contextData))
 						// 2. Save RC
-						.thenApply(contextData -> prepareRCData(contextData))
-						// .thenApply(contextData -> saveRCData(contextData))
+						// .thenApply(contextData -> prepareRCData(contextData))
+						.thenApply(contextData -> saveRCData(contextData))
 						// 3. Save BOL
-						.thenApply(contextData -> prepareBOLData(contextData))
-						// .thenApply(contextData -> saveBOLData(contextData))
+						// .thenApply(contextData -> prepareBOLData(contextData))
+						.thenApply(contextData -> saveBOLData(contextData))
 						// 4. Call Blur detection per page
 						.thenApply(contextData -> checkBlurScore(contextData))
 						// 5. Call Contrast enhancement per page
 						.thenApply(contextData -> enhanceContrast(contextData))
 						// 6. Convert Image to PDF and store to Object Store
 						.thenApply(contextData -> convertPDFandSaveToObjectStore(contextData))
-						// 7. Finally Update status
-						.thenApply(contextData -> checkProcessStatus(contextData))
-						// 8. Stitch PDF
-						.thenAccept(contextData -> stitchPDF(contextData));
-
+						// 7. Stitch PDF
+						.thenApply(contextData -> stitchPDF(contextData))
+						// 8. Finally Update status
+						.thenAccept(contextData -> checkProcessStatus(contextData));
 			}
 
 		} catch (Exception e) {
-			// Log message
 			log.error(e.getMessage());
 		}
 		return msg;
 	}
 
-	// Set up destinations
-	public void setUpDestinations() {
-		try {
-			hanaDp = new DestinationProxy("HANAServiceDest");
-			hanaApi = hanaDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
-			hanaHystrixConfig = getHystrixConfig(hanaDp);
-		} catch (JSONException e) {
-			log.error("HANA oData Service Destination is not configured:" + e.getMessage());
-			e.printStackTrace();
-		}
-		try {
-			blurDetectionDp = new DestinationProxy("BlurScoreDest");
-			blurDetectionApi = blurDetectionDp.getProperties().getJSONObject("destinationConfiguration")
-					.getString("URL");
-			blurDetectionHystrixConfig = getHystrixConfig(blurDetectionDp);
-		} catch (JSONException e) {
-			log.error("Blur Detection Service Destination is not configured:" + e.getMessage());
-			e.printStackTrace();
-		}
-		try {
-			contrastEnhancementDp = new DestinationProxy("ContrastEnhancementDest");
-			contrastEnhancementApi = contrastEnhancementDp.getProperties().getJSONObject("destinationConfiguration")
-					.getString("URL");
-			contrastEnhancementHystrixConfig = getHystrixConfig(contrastEnhancementDp);
-		} catch (JSONException e) {
-			log.error("Contrast Enhancement Service Destination is not configured:" + e.getMessage());
-			e.printStackTrace();
-		}
-		try {
-			objectStoreDp = new DestinationProxy("ObjectStoreDest");
-			objectStoreApi = objectStoreDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
-		} catch (JSONException e) {
-			log.error("Object Store Service Destination is not configured:" + e.getMessage());
-			e.printStackTrace();
-		}
-		try {
-			imageToPdfDp = new DestinationProxy("ImageToPdfDest");
-			imageToPdfApi = imageToPdfDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
-			imageToPdfHystrixConfig = getHystrixConfig(imageToPdfDp);
-		} catch (JSONException e) {
-			log.error("Image to PDF Conversion Service Destination is not configured:" + e.getMessage());
-			e.printStackTrace();
-		}
-		try {
-			pdfStitchingDp = new DestinationProxy("PdfStitchingDest");
-			pdfStitchingApi = pdfStitchingDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
-			pdfStitchingHystrixConfig = getHystrixConfig(pdfStitchingDp);
-		} catch (JSONException e) {
-			log.error("PDF Stitching Service Destination is not configured:" + e.getMessage());
-			e.printStackTrace();
-		}
-	}
-
 	// 1.Save Load status data
 	public Context prepareStatusData(Context context) {
 		// this.log.info(String.valueOf(++context.counter)+":Preparing Status Data");
-		log.info("Log No." + String.valueOf(++context.counter) + ": Preparing Status Data");
 
 		String statusCode = statusCodeInitiated;
 		String statusDescription = "Initial Posting";
 
-		// Generate file name
-		String fileName = context.getLoad().getDocuments()[context.getIndex()].getDocumentType() + "_"
-				+ context.getLoad().getDebtorName() + "_" + context.getLoad().getLoadNo() + "_"
+		String fileName = "";
+		String documentType = "";
+		if (context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("BOL")) {
+			documentType = context.getLoad().getDocuments()[context.getIndex()].getDocumentType()
+					+ String.valueOf(context.getBolCounter());
+		} else {
+			documentType = context.getLoad().getDocuments()[context.getIndex()].getDocumentType();
+		}
+		fileName = documentType + "_" + context.getLoad().getDebtorName() + "_" + context.getLoad().getLoadNo() + "_"
 				+ context.getLoad().getDate();
+
+		log.info("Log No." + String.valueOf(++context.counter) + ": Preparing Status Data for " + fileName);
 
 		List<String> filenames = this.load.getFilenames();
 		// log.info("Log No." + String.valueOf(context.counter) + ": current file list "
@@ -189,24 +162,314 @@ public class ProcessDocuments {
 
 		// combined name = debtorName + LoadNo + Date + "_" + debotName ....
 		String stitchedPdfName = this.load.getStitchedPdfName();
-		stitchedPdfName += context.getLoad().getDebtorName() + "_" + context.getLoad().getLoadNo() + "_"
-				+ context.getLoad().getDate() + "_";
+		stitchedPdfName += documentType + "_";
 		this.load.setStitchedPdfName(stitchedPdfName);
 
 		// Map status data
 		Status statusdata = new Status(context.getLoad().getGUID(), context.getLoad().getLoadNo(),
-				context.getLoad().getDebtorName(), context.getLoad().getDate(),
-				context.getLoad().getDocuments()[context.getIndex()].getDocumentType(), fileName,
+				context.getLoad().getDebtorName(), context.getLoad().getDate(), documentType, fileName,
 				context.getLoad().getDocuments().length, statusCode, statusDescription);
 
 		context.setStatus(statusdata);
+
+		// Check for duplicated data
+		if (loadEntryExists(context)) {
+			context.setExist(true);
+		}
+
 		// Check if any entry exists in DB for same Load number, if so this is a
 		// Re-submission
-		if (loadEntryExists(context)) {
+		if (context.isExist()) {
 			statusCode = statusCodeResubmission;
 			statusDescription = "Re-submission";
 			context.getStatus().setStatus(statusCode);
 			context.getStatus().setStatusDescription(statusDescription);
+		}
+		return context;
+	}
+
+	// Save Status via OData POST
+	public Context saveStatusData(Context context) {
+		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Status Data");
+		if (!context.isExist()) {
+			try {
+				context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "Status", "POST"),
+						context).execute();
+			} catch (Exception e) {
+				log.error("Log No." + String.valueOf(context.counter) + ": " + e.getMessage());
+			}
+		} else {
+			log.info("Log No." + String.valueOf(context.counter) + ": Staus data exists, updating Status Data");
+			updateStatus(context);
+		}
+		return context;
+	}
+
+	// Check if entry exists via ODATA GET
+	public boolean loadEntryExists(Context context) {
+		log.info("Log No." + String.valueOf(++context.counter) + ": Checking Duplicated Status Data");
+		try {
+			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "Status", "GET"), context)
+					.execute();
+		} catch (Exception e) {
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+		}
+		return context.isExist();
+	}
+
+	public Context updateStatus(Context context) {
+		log.info("Log No." + String.valueOf(++context.counter) + ": Updating Status Data");
+		try {
+			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "Status", "PUT"), context)
+					.execute();
+		} catch (Exception e) {
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+		}
+		return context;
+	}
+
+	// 2. Save RC
+	public Context prepareRCData(Context context) {
+		if (context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("RC")) {
+			context.setRc(new RateConfirmation(context.getLoad().getGUID(), // GUID
+					context.getLoad().getLoadNo(), // loadNo;
+					context.getLoad().getDebtorName(), // debtorName;
+					context.getLoad().getDate(), // date;
+					"", // documentConfidence;
+					context.getLoad().getAmount(), // amount;
+					"", // amountML;
+					"", // amountConfidence;
+					context.getLoad().getCarrierName(), // carrierName;
+					"", // carrierNameML;
+					"", // carrierNameConfidence;
+					"", // loadNoML;
+					"", // loadNoConfidence;
+					"", // debtorNameML;
+					"", // debtorNameConfidence;
+					"", // receiverNameML;
+					"", // receiverNameConfidence;
+					"", // shipperNameML;
+					"", // shipperNameConfidence;
+					"", // shipToML;
+					"", // shipToConfidence;
+					"", // shipFromML;
+					"" // shipFromConfidence;
+			));
+			// saveRCData(context);
+		}
+
+		return context;
+	}
+
+	public Context saveRCData(Context context) {
+		if (context.isExist()) {
+			log.info("Log No." + String.valueOf(++context.counter)
+					+ ": Rate Confirmation Data already exists, skipping saving");
+			return context;
+		}
+		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Rate Confirmation Data");
+		try {
+			context = new RemoteCall(hanaHystrixConfig, new RateConfirmationHANAService(context, hanaApi + "RateConfirmation", "POST"), context).execute();
+		} catch (Exception e) {
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+		}
+
+		return context;
+	}
+
+	public Context prepareBOLData(Context context) {
+		if (context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("BOL")) {
+			context.setBol(new BillOfLading(context.getLoad().getGUID(), // GUID;
+					context.getLoad().getLoadNo(), // loadNo;
+					context.getLoad().getDebtorName(), // debtorName;
+					context.getLoad().getDate(), // date;
+					UUID.randomUUID().toString(), // BOLID
+					context.getLoad().getDocuments()[context.getIndex()].getReceiverName(), // receiverName;
+					"", // receiverNameML;
+					"", // receiverNameConfidence;
+					context.getLoad().getDocuments()[context.getIndex()].getShipperName(), // shipperName;
+					"", // shipperNameML;
+					"", // shipperNameConfidence;
+					context.getLoad().getDocuments()[context.getIndex()].getShipTo(), // shipTo;
+					"", // shipToML;
+					"", // shipToConfidence;
+					context.getLoad().getDocuments()[context.getIndex()].getShipFrom(), // shipFrom //shipFrom;
+					"", // shipFromML;
+					"" // shipFromConfidence;
+			));
+		}
+		return context;
+	}
+
+	public Context saveBOLData(Context context) {
+		if (context.isExist()) {
+			log.info("Log No." + String.valueOf(context.counter)
+					+ ": Bill of Lading Data already exists, skipping saving");
+			return context;
+		}
+		log.info("Log No." + String.valueOf(context.counter) + ": Saving Bill of Lading Data");
+		try {
+//			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "BillOfLading", "POST"),
+//					context).execute();
+					
+			context = new RemoteCall(hanaHystrixConfig, new BillOfLadingHANAService(context, hanaApi + "BillOfLading", "POST"), context).execute();
+		} catch (Exception e) {
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+		}
+		return context;
+	}
+
+	public Context checkBlurScore(Context context) {
+		// Skip this step and send PDF to object store
+		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
+			context = new RemoteCall(fileStoreHystrixConfig, new PDFStoreService(context, fileStoreApi, objectStoreApi),
+					context).execute();
+			return context;
+		}
+		int pageIndex = 0;
+		String message = "";
+		log.info("Log No." + String.valueOf(++context.counter) + ":Getting Blur score");
+
+		try {
+			double thrshold = 2000.0; // Todo: Call method to get threshold from destination
+			for (pageIndex = 0; pageIndex < context.getLoad().getDocuments()[context.getIndex()]
+					.getPages().length; pageIndex++) {
+				context.setPageIndex(pageIndex);
+				context = new RemoteCall(blurDetectionHystrixConfig, new BlurScoreService(context, blurDetectionApi),
+						context).execute();
+				// If image score less than and equal to threshold -> consider image blurry
+				if (context.getLoad().getDocuments()[context.getIndex()].getPages()[pageIndex]
+						.getBlurScore() <= thrshold) {
+					message = "Page " + String.valueOf(pageIndex + 1) + " is blurry.";
+					// Construct Status
+					// Map status data
+					// Status statusdata = new Status(context.getStatus().getGUID(),
+					// context.getStatus().getLoadNo(),
+					// context.getStatus().getDebtorName(), context.getStatus().getDate(),
+					// context.getStatus().getDocumentType(), context.getStatus().getFileName(),
+					// context.getStatus().getPageCount(), statusCodeBlurred, message);
+					// context.setStatus(statusdata);
+					// context = updateStatus(context);
+				}
+			}
+		} catch (Exception e) {
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			message += "Error during Blur Detection.Page:" + String.valueOf(pageIndex) + ".";
+			// Construct Status
+			// Map status data
+			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
+					context.getStatus().getDebtorName(), context.getStatus().getDate(),
+					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
+					context.getStatus().getPageCount(), statusCodeConrastFailed, message);
+			// Update Context
+			context.setStatus(statusdata);
+			// Update DB
+			context = updateStatus(context);
+		}
+		return context;
+	}
+
+	public Context enhanceContrast(Context context) {
+		// Skip this step for PDF
+		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
+			return context;
+		}
+		int pageIndex = 0;
+		String message = "";
+		log.info("Log No." + String.valueOf(++context.counter) + ": Enhancing contrast of the images");
+
+		try {
+			for (pageIndex = 0; pageIndex < context.getLoad().getDocuments()[context.getIndex()]
+					.getPages().length; pageIndex++) {
+				context.setPageIndex(pageIndex);
+				context = new RemoteCall(contrastEnhancementHystrixConfig,
+						new ContrastEnhanceService(context, contrastEnhancementApi), context).execute();
+			}
+		} catch (Exception e) {
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			message += "Error during Contrast Enhancement.Page:" + String.valueOf(pageIndex) + ".";
+			// Construct Status
+			// Map status data
+			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
+					context.getStatus().getDebtorName(), context.getStatus().getDate(),
+					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
+					context.getStatus().getPageCount(), statusCodeConrastFailed, message);
+			context.setStatus(statusdata);
+		}
+		context = updateStatus(context);
+		return context;
+	}
+
+	public Context convertPDFandSaveToObjectStore(Context context) {
+		// Skip this step for PDF
+		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
+			return context;
+		}
+		String message = "";
+
+		log.info("Log No." + String.valueOf(++context.counter) + ": Converting images");
+
+		try {
+			context = new RemoteCall(imageToPdfHystrixConfig,
+					new PDFConvertService(context, imageToPdfApi, objectStoreApi), context).execute();
+		} catch (Exception e) {
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			message += "Error during PDF conversion";
+			// Construct Status
+			// Map status data
+			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
+					context.getStatus().getDebtorName(), context.getStatus().getDate(),
+					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
+					context.getStatus().getPageCount(), statusCodePDFConvertFailed, message);
+			context.setStatus(statusdata);
+		}
+		context = updateStatus(context);
+		return context;
+	}
+
+	public Context checkProcessStatus(Context context) {
+		log.info("Log No." + String.valueOf(++context.counter) + ": Checking Status for ML pickup");
+		// If All the check passed successfully
+		// log.info("Log No." + String.valueOf(context.counter) + " StatusData: " +
+		// context.getStatus().getStatus());
+
+		if (context.getStatus().getStatus().toString().equals(statusCodeInitiated)
+				|| context.getStatus().getStatus().toString().equals(statusCodeResubmission)) {
+			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
+					context.getStatus().getDebtorName(), context.getStatus().getDate(),
+					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
+					context.getStatus().getPageCount(), statusCodeObjectStoreOpsReady, "Ready for ML Process");
+
+			context.setStatus(statusdata);
+			context = updateStatus(context);
+		}
+		return context;
+	}
+
+	public Context stitchPDF(Context context) {
+		log.info("Log No." + String.valueOf(++context.counter) + " Checking if it's ready to stitch PDF files.");
+		if (context.getIndex() == context.getLoad().getDocuments().length - 1) {
+			if (context.getPageIndex() == context.getLoad().getDocuments()[context.getIndex()].getPages().length - 1) {
+				String message = "";
+				log.info("Log No." + String.valueOf(context.counter) + " Stitching all the PDF files");
+
+				try {
+					context = new RemoteCall(pdfStitchingHystrixConfig,
+							new PDFStitchingService(context, pdfStitchingApi, objectStoreApi), context).execute();
+				} catch (Exception e) {
+					log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+					message += "Error during PDF stitching";
+					// Construct Status
+					// Map status data
+					Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
+							context.getStatus().getDebtorName(), context.getStatus().getDate(),
+							context.getStatus().getDocumentType(), context.getStatus().getFileName(),
+							context.getStatus().getPageCount(), statusCodePDFConvertFailed, message);
+					// Update Context
+					context.setStatus(statusdata);
+				}
+				context = updateStatus(context);
+			}
 		}
 		return context;
 	}
@@ -322,322 +585,65 @@ public class ProcessDocuments {
 		return config;
 	}
 
-	// Save Status via OData POST
-	public Context saveStatusData(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Status Data");
-		if (!context.isExist()) {
-			try {
-				context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "Status", "POST"),
-						context).execute();
-			} catch (Exception e) {
-				log.error("Log No." + String.valueOf(context.counter) + ": " + e.getMessage());
-			}
-		} else {
-			updateStatus(context);
-		}
-		return context;
-	}
-
-	// Check if entry exists via ODATA GET
-	public boolean loadEntryExists(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + ": Checking Duplicated Status Data");
+	// Set up destinations
+	public void setUpDestinations() {
 		try {
-			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "Status", "GET"), context)
-					.execute();
-		} catch (Exception e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			hanaDp = new DestinationProxy("HANAServiceDest");
+			hanaApi = hanaDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
+			hanaHystrixConfig = getHystrixConfig(hanaDp);
+		} catch (JSONException e) {
+			log.error("HANA oData Service Destination is not configured:" + e.getMessage());
+			e.printStackTrace();
 		}
-		return context.isExist();
-	}
-
-	public Context updateStatus(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + ": Updating Status Data");
 		try {
-			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "Status", "PUT"), context)
-					.execute();
-		} catch (Exception e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			blurDetectionDp = new DestinationProxy("BlurScoreDest");
+			blurDetectionApi = blurDetectionDp.getProperties().getJSONObject("destinationConfiguration")
+					.getString("URL");
+			blurDetectionHystrixConfig = getHystrixConfig(blurDetectionDp);
+		} catch (JSONException e) {
+			log.error("Blur Detection Service Destination is not configured:" + e.getMessage());
+			e.printStackTrace();
 		}
-		return context;
-	}
-
-	// 2. Save RC
-	public Context prepareRCData(Context context) {
-		if (context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("RC") && !context.isExist()) {
-			context.setRc(new RateConfirmation(context.getLoad().getGUID(), // GUID
-					context.getLoad().getLoadNo(), // loadNo;
-					context.getLoad().getDebtorName(), // debtorName;
-					context.getLoad().getDate(), // date;
-					"", // documentConfidence;
-					context.getLoad().getAmount(), // amount;
-					"", // amountML;
-					"", // amountConfidence;
-					context.getLoad().getCarrierName(), // carrierName;
-					"", // carrierNameML;
-					"", // carrierNameConfidence;
-					"", // loadNoML;
-					"", // loadNoConfidence;
-					"", // debtorNameML;
-					"", // debtorNameConfidence;
-					"", // receiverNameML;
-					"", // receiverNameConfidence;
-					"", // shipperNameML;
-					"", // shipperNameConfidence;
-					"", // shipToML;
-					"", // shipToConfidence;
-					"", // shipFromML;
-					"" // shipFromConfidence;
-			));
-			saveRCData(context);
-		}
-
-		return context;
-	}
-
-	public Context saveRCData(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Rate Confirmation Data");
 		try {
-			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "RateConfirmation", "POST"),
-					context).execute();
-		} catch (Exception e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			contrastEnhancementDp = new DestinationProxy("ContrastEnhancementDest");
+			contrastEnhancementApi = contrastEnhancementDp.getProperties().getJSONObject("destinationConfiguration")
+					.getString("URL");
+			contrastEnhancementHystrixConfig = getHystrixConfig(contrastEnhancementDp);
+		} catch (JSONException e) {
+			log.error("Contrast Enhancement Service Destination is not configured:" + e.getMessage());
+			e.printStackTrace();
 		}
-
-		return context;
-	}
-
-	public Context prepareBOLData(Context context) {
-		/*
-		 * BillOfLading[] bols = new
-		 * BillOfLading[context.getLoad().getDocuments().length];
-		 * 
-		 * for(int i=0; i<context.getLoad().getDocuments().length;i++) { bols[i] = new
-		 * BillOfLading( context.getLoad().getGUID(), //GUID;
-		 * context.getLoad().getLoadNo(), //loadNo; context.getLoad().getDebtorName(),
-		 * //debtorName; context.getLoad().getDate(), //date;
-		 * UUID.randomUUID().toString(), //BOLID
-		 * context.getLoad().getDocuments()[i].getReceiverName(), //receiverName; "",
-		 * //receiverNameML; "", //receiverNameConfidence;
-		 * context.getLoad().getDocuments()[i].getShipperName(), //shipperName; "",
-		 * //shipperNameML; "", //shipperNameConfidence;
-		 * context.getLoad().getDocuments()[i].getShipTo(), //shipTo; "", //shipToML;
-		 * "", //shipToConfidence; context.getLoad().getDocuments()[i].getShipFrom(),
-		 * //shipFrom; "", //shipFromML; "" //shipFromConfidence; ); }
-		 */
-		if (context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("BOL")
-				&& !context.isExist()) {
-			context.setBol(new BillOfLading(context.getLoad().getGUID(), // GUID;
-					context.getLoad().getLoadNo(), // loadNo;
-					context.getLoad().getDebtorName(), // debtorName;
-					context.getLoad().getDate(), // date;
-					UUID.randomUUID().toString(), // BOLID
-					context.getLoad().getDocuments()[context.getIndex()].getReceiverName(), // receiverName;
-					"", // receiverNameML;
-					"", // receiverNameConfidence;
-					context.getLoad().getDocuments()[context.getIndex()].getShipperName(), // shipperName;
-					"", // shipperNameML;
-					"", // shipperNameConfidence;
-					context.getLoad().getDocuments()[context.getIndex()].getShipTo(), // shipTo;
-					"", // shipToML;
-					"", // shipToConfidence;
-					context.getLoad().getDocuments()[context.getIndex()].getShipFrom(), // shipFrom //shipFrom;
-					"", // shipFromML;
-					"" // shipFromConfidence;
-			));
-			saveBOLData(context);
-		}
-		return context;
-	}
-
-	public Context saveBOLData(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Bill of Lading Data");
 		try {
-			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "BillOfLading", "POST"),
-					context).execute();
-		} catch (Exception e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			objectStoreDp = new DestinationProxy("ObjectStoreDest");
+			objectStoreApi = objectStoreDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
+		} catch (JSONException e) {
+			log.error("Object Store Service Destination is not configured:" + e.getMessage());
+			e.printStackTrace();
 		}
-		return context;
-	}
-
-	public Context checkBlurScore(Context context) {
-		// Skip this step for PDF
-		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
-			// send pdf to object store
-			return context;
-		}
-		int pageIndex = 0;
-		String message = "";
-		log.info("Log No." + String.valueOf(++context.counter) + ":Getting Blur score");
-
 		try {
-			// message += "Blurry Page:";
-			double thrshold = 2000.0; // Todo: Call method to get threshold from destination
-			for (pageIndex = 0; pageIndex < context.getLoad().getDocuments()[context.getIndex()]
-					.getPages().length; pageIndex++) {
-				context.setPageIndex(pageIndex);
-				context = new RemoteCall(blurDetectionHystrixConfig, new BlurScoreService(context, blurDetectionApi),
-						context).execute();
-				// If image score less than and equal to threshold -> consider image blurry
-				if (context.getLoad().getDocuments()[context.getIndex()].getPages()[pageIndex]
-						.getBlurScore() <= thrshold) {
-					message = "Page " + String.valueOf(pageIndex + 1) + " is blurry.";
-					// Construct Status
-					// Map status data
-					Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-							context.getStatus().getDebtorName(), context.getStatus().getDate(),
-							context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-							context.getStatus().getPageCount(), statusCodeBlurred, message);
-					context.setStatus(statusdata);
-					context = updateStatus(context);
-				}
-			}
-		} catch (Exception e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-			message += "Error during Blur Detection.Page:" + String.valueOf(pageIndex) + ".";
-			// Construct Status
-			// Map status data
-			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-					context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					context.getStatus().getPageCount(), statusCodeConrastFailed, message);
-			// Update Context
-			context.setStatus(statusdata);
-			// Update DB
-			context = updateStatus(context);
+			imageToPdfDp = new DestinationProxy("ImageToPdfDest");
+			imageToPdfApi = imageToPdfDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
+			imageToPdfHystrixConfig = getHystrixConfig(imageToPdfDp);
+		} catch (JSONException e) {
+			log.error("Image to PDF Conversion Service Destination is not configured:" + e.getMessage());
+			e.printStackTrace();
 		}
-		return context;
-	}
-
-	// private String getblurScoreAPIURL() {
-	// String targetURL = "";
-	// DestinationProxy dp = new DestinationProxy("BlurScoreDest");
-	// // return dp.getProperties().toString();
-	// // JSONObject destConfig = new JSONObject(IOUtils.toString(in,
-	// // StandardCharsets.UTF_8));
-	// try {
-	// targetURL =
-	// dp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
-	// } catch (JSONException e) {
-	// log.error("Destination not configured:" + e.getMessage());
-	// e.printStackTrace();
-	// }
-	// return targetURL;
-	// }
-
-	public Context enhanceContrast(Context context) {
-		// Skip this step for PDF
-		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
-			return context;
-		}
-		int pageIndex = 0;
-		String message = "";
-		log.info("Log No." + String.valueOf(++context.counter) + ": Enhancing contrast of the images");
-
 		try {
-			for (pageIndex = 0; pageIndex < context.getLoad().getDocuments()[context.getIndex()]
-					.getPages().length; pageIndex++) {
-				context.setPageIndex(pageIndex);
-				context = new RemoteCall(contrastEnhancementHystrixConfig,
-						new ContrastEnhanceService(context, contrastEnhancementApi), context).execute();
-			}
-		} catch (Exception e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-			message += "Error during Contrast Enhancement.Page:" + String.valueOf(pageIndex) + ".";
-			// Construct Status
-			// Map status data
-			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-					context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					context.getStatus().getPageCount(), statusCodeConrastFailed, message);
-			context.setStatus(statusdata);
+			pdfStitchingDp = new DestinationProxy("PdfStitchingDest");
+			pdfStitchingApi = pdfStitchingDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
+			pdfStitchingHystrixConfig = getHystrixConfig(pdfStitchingDp);
+		} catch (JSONException e) {
+			log.error("PDF Stitching Service Destination is not configured:" + e.getMessage());
+			e.printStackTrace();
 		}
-		context = updateStatus(context);
-		return context;
-	}
-
-	public Context convertPDFandSaveToObjectStore(Context context) {
-		// Skip this step for PDF
-		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
-			return context;
-		}
-		String message = "";
-
-		log.info("Log No." + String.valueOf(++context.counter) + ": Converting images to ");
-
 		try {
-			context = new RemoteCall(imageToPdfHystrixConfig,
-					new PDFConvertService(context, imageToPdfApi, objectStoreApi), context).execute();
-		} catch (Exception e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-			message += "Error during PDF conversion";
-			// Construct Status
-			// Map status data
-			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-					context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					context.getStatus().getPageCount(), statusCodePDFConvertFailed, message);
-			context.setStatus(statusdata);
+			fileStoreDp = new DestinationProxy("FileStoreDest");
+			fileStoreApi = fileStoreDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
+			fileStoreHystrixConfig = getHystrixConfig(fileStoreDp);
+		} catch (JSONException e) {
+			log.error("PDF Store Service Destination is not configured:" + e.getMessage());
+			e.printStackTrace();
 		}
-		context = updateStatus(context);
-		return context;
-	}
-
-	public Context checkProcessStatus(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + ": Checking Status for ML pickup");
-		// If All the check passed successfully
-		// log.info("Log No." + String.valueOf(context.counter) + " StatusData: " +
-		// context.getStatus().getStatus());
-
-		if (context.getStatus().getStatus().toString().equals(statusCodeInitiated)) {
-			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-					context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					context.getStatus().getPageCount(), statusCodeObjectStoreOpsReady, "Ready for ML Process");
-			// log.info("Log No." + String.valueOf(context.counter) + " GUID:" +
-			// context.getStatus().getGUID() + "LoadNo:"
-			// + context.getStatus().getLoadNo() + "Debtor:" +
-			// context.getStatus().getDebtorName() + "Date:"
-			// + context.getStatus().getDate() + "DocumentType:" +
-			// context.getStatus().getDocumentType()
-			// + "File Name:" + context.getStatus().getFileName() + "Page Count:"
-			// + context.getStatus().getPageCount());
-			// Update Context
-			context.setStatus(statusdata);
-			// // Update DB
-			context = updateStatus(context);
-		}
-		return context;
-	}
-
-	public Context stitchPDF(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + " Checking if it's ready to stitch PDF files.");
-		if (context.getIndex() == context.getLoad().getDocuments().length - 1) {
-			if (context.getPageIndex() == context.getLoad().getDocuments()[context.getIndex()].getPages().length - 1) {
-				String message = "";
-				log.info("Log No." + String.valueOf(context.counter) + " Stitching all the PDF files");
-
-				try {
-					context = new RemoteCall(pdfStitchingHystrixConfig,
-							new PDFStitchingService(context, pdfStitchingApi, objectStoreApi), context).execute();
-				} catch (Exception e) {
-					log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-					message += "Error during PDF stitching";
-					// Construct Status
-					// Map status data
-					Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-							context.getStatus().getDebtorName(), context.getStatus().getDate(),
-							context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-							context.getStatus().getPageCount(), statusCodePDFConvertFailed, message);
-
-					// Update Context
-					context.setStatus(statusdata);
-					// Update DB
-					context = updateStatus(context);
-				}
-			}
-		}
-		return context;
 	}
 
 }

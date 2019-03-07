@@ -47,7 +47,7 @@ def pdf_stitching():
     files = {'file': file}
     res = requests.post(api + upload_object_path, files = files)
     
-    return str(res.status_code)
+    return res.text
 
 if __name__ == '__main__':
 	if cf_port is None:

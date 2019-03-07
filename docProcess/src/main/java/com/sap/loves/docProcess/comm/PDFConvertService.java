@@ -69,16 +69,17 @@ public class PDFConvertService implements IServer {
 		}
 
 		if (response.getStatusCode() == HttpStatus.OK) {
+//			log.info("Log No." + String.valueOf(context.counter) + " All images have been converted to PDF file. " + response.getBody());
 			return context;
 		}
 
-		log.error("Log No." + String.valueOf(context.counter) + " Failed to convert images to PDF files.");
+		log.error("Log No." + String.valueOf(context.counter) + " Failed to convert images to a PDF file.");
 		return updateStatus(context);
 	}
 
 	@Override
 	public Context fallBack() {
-		log.error("Log No." + String.valueOf(context.counter) + " Failed to convert images to PDF files.");
+		log.error("Log No." + String.valueOf(context.counter) + " Failed to convert images to a PDF file.");
 		return updateStatus(context);
 	}
 

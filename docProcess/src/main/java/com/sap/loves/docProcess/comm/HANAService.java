@@ -48,8 +48,6 @@ public class HANAService implements IServer {
 					+ "\',documentType=\'" + status.getDocumentType() + "\')";
 		}
 		
-//		log.info("Log No." + String.valueOf(context.counter) + " HANA URL: " + url);
-
 		RestTemplate restTemplate = new RestTemplate();
 		ObjectMapper mapper = new ObjectMapper();
 
@@ -73,6 +71,10 @@ public class HANAService implements IServer {
 				e.printStackTrace();
 			}
 		}
+		
+//		log.info("Log No." + String.valueOf(context.counter) + " About to " +  operation + " " + entity + " with url: " + url);		
+
+//		log.info("Log No." + String.valueOf(context.counter) + " About to " +  operation + " " + entity + " with payload: " + entityJson);		
 
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_JSON);
@@ -83,27 +85,39 @@ public class HANAService implements IServer {
 		try {
 			if(operation == "POST") {
 				response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
+				if(response.getStatusCode() == HttpStatus.CREATED) {
+//					log.info("Log No." + String.valueOf(context.counter) + "Successfully " +  operation + " " + entity);
+				}else {
+					log.error("Log No." + String.valueOf(context.counter) + "Failed to " +  operation + " " + entity + ": " + response.getBody());
+				}
 			}else if(operation == "PUT") {
 				response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
+				if(response.getStatusCode() == HttpStatus.NO_CONTENT) {
+//					log.info("Log No." + String.valueOf(context.counter) + "Successfully " +  operation + " " + entity);
+				}else {
+					log.error("Log No." + String.valueOf(context.counter) + "Failed to " +  operation + " " + entity + ": " + response.getBody());
+				}
 			}else if(operation == "GET") {
 				response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
-				log.info("Log No." + String.valueOf(context.counter) + "Response Code: " + response.getStatusCode());
+//				log.info("Log No." + String.valueOf(context.counter) + "Response Code: " + response.getStatusCode());
 				if(response.getStatusCode() == HttpStatus.OK) {
 					log.info("Log No." + String.valueOf(context.counter) + "Duplicated Status Data Exist");
 					context.setExist(true);
+				}else {
+					log.error("Log No." + String.valueOf(context.counter) + "Failed to " +  operation + " " + entity + ": " + response.getBody());
 				}
 			}
 		} catch (RuntimeException e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			log.error("Log No." + String.valueOf(context.counter) + " Failed to " + operation + " " + entity + ": " + e.getMessage());
 		}
+
 		return context;
 	}
 
 	@Override
 	public Context fallBack() {
 		// Default implementation
-		log.info("Log No." + String.valueOf(context.counter) + " Failed to " + operation + " " + entity);
-
+		log.error("Log No." + String.valueOf(context.counter) + " Fallback - Failed to " + operation + " " + entity);
 		return context;
 	}
 

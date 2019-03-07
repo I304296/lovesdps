@@ -45,6 +45,7 @@ public class ContrastEnhanceService implements IServer {
 			response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 		} catch (RuntimeException e) {
 			log.error("Log No." + String.valueOf(context.counter) + " " +  e.getMessage());
+			return updateStatus(context);
 		}
 		
 		if(response.getStatusCode() == HttpStatus.OK) {
@@ -65,6 +66,7 @@ public class ContrastEnhanceService implements IServer {
 	}
 	
 	public Context updateStatus(Context context) {
+		// techincal error T2
 		String statusCode = "2";
 		String statusDescription = "Contrast Enhancement Failed";
 		context.getStatus().setStatus(statusCode);

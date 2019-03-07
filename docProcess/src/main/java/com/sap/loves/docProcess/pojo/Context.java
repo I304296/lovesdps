@@ -9,6 +9,7 @@ public class Context {
 	private Status statusDBRecord;
 	private RateConfirmation rc;
     private BillOfLading bol;
+    private int bolCounter;
     private boolean exist;
 
 	public Context() {
@@ -94,6 +95,14 @@ public class Context {
 
 	public void setExist(boolean exist) {
 		this.exist = exist;
+	}
+
+	public int getBolCounter() {
+		return bolCounter;
+	}
+
+	public void setBolCounter(int bolCounter) {
+		this.bolCounter = bolCounter;
 	}
 
 }

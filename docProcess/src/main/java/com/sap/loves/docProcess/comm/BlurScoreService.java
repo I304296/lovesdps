@@ -35,8 +35,8 @@ public class BlurScoreService implements IServer {
 		requestJson += base64content + "\"}";
 
 		HttpEntity<String> entity = new HttpEntity<String>(requestJson, headers);
-		
-//		log.info("Log No." + String.valueOf(context.counter) + " Blur Score API: " + url);
+
+//		log.info("Log No." + String.valueOf(context.counter) + " Check blurriness for content: " + requestJson);
 
 		try {
 			response += restTemplate.postForObject(url, entity, String.class);
@@ -45,8 +45,10 @@ public class BlurScoreService implements IServer {
 		}
 
 		double score = Double.parseDouble(response);
-//		log.info("Log No." + String.valueOf(context.counter) + " Blurness Score: "+ score +" Doc Index: "+String.valueOf(context.getIndex())+" Page Index: "+String.valueOf(context.getPageIndex()));
-		
+		// log.info("Log No." + String.valueOf(context.counter) + " Blurness Score: "+
+		// score +" Doc Index: "+String.valueOf(context.getIndex())+" Page Index:
+		// "+String.valueOf(context.getPageIndex()));
+
 		context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setBlurScore(score);
 		return this.context;
 	}
@@ -54,7 +56,9 @@ public class BlurScoreService implements IServer {
 	@Override
 	public Context fallBack() {
 		// Default implementation
-		log.info("Log No." + String.valueOf(context.counter) + " Failed to retrieve blurness score. Setting the default score 2000");
+		log.info("Log No." + String.valueOf(context.counter) + " Failed to retrieve blurness score for page "
+				+ context.getPageIndex() + " document: " + context.getStatus().getFileName()
+				+ "Setting the default score 2000");
 		context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setBlurScore(2000);
 		return context;
 	}
