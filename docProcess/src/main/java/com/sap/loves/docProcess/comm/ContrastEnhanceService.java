@@ -14,23 +14,21 @@ import com.sap.loves.docProcess.api.ApiController;
 import com.sap.loves.docProcess.pojo.Context;
 
 public class ContrastEnhanceService implements IServer {
-    private String url;
-    private Context context;
-    
-    final static Logger log = LoggerFactory.getLogger(ApiController.class);
-    
-    public ContrastEnhanceService(Context context, String url) {
-    	this.context = context;
-    	this.url = url;
-    }
-    
+	private String url;
+	private Context context;
+
+	final static Logger log = LoggerFactory.getLogger(ApiController.class);
+
+	public ContrastEnhanceService(Context context, String url) {
+		this.context = context;
+		this.url = url;
+	}
+
 	@Override
 	public Context execute() {
-//		log.info("Log No." + String.valueOf(context.counter) + " Enhancing Doc Index:"+String.valueOf(context.getIndex())+" Page Index:"+String.valueOf(context.getPageIndex()));
-		String base64content = context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].getContent();
-		//String base64content = context.getLoad().getDocuments()[0].getPages()[0].getContent();
-		// Call Contrast service using RestTemplate, get enhanced image and update context
-	
+		int pageIndex = context.getPageIndex();
+		String base64content = context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()]
+				.getContent();
 		String requestJson = "{\"contrast_threshold\": 2, \"img\":\"";
 		RestTemplate restTemplate = new RestTemplate();
 
@@ -40,39 +38,42 @@ public class ContrastEnhanceService implements IServer {
 
 		HttpEntity<String> request = new HttpEntity<String>(requestJson, headers);
 		ResponseEntity<String> response = null;
-		
+
 		try {
 			response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 		} catch (RuntimeException e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " +  e.getMessage());
-			return updateStatus(context);
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			context = updateContextStatusDescription(context, "| Exception during contrast enhancement API call at page " + String.valueOf(pageIndex) + " ");
 		}
-		
-		if(response.getStatusCode() == HttpStatus.OK) {
-//			log.info("Log No." + String.valueOf(context.counter) + " Image Doc Index: "+String.valueOf(context.getIndex())+" Page Index: "+String.valueOf(context.getPageIndex()) + " has been enahnced to: " + response.getBody());
-			context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setContent(response.getBody());
-			return context;
+
+		if (response.getStatusCode() == HttpStatus.OK) {
+			context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()]
+					.setContent(response.getBody());
+		} else {
+			context = updateContextStatusDescription(context, "| Error during contrast enhancement API call at page " + String.valueOf(pageIndex) + " ");
 		}
-		
-		log.error("Log No." + String.valueOf(context.counter) + " Failed to enchance the image. Doc Index: "+ String.valueOf(context.getIndex()) + " Page Index: " + String.valueOf(context.getPageIndex()));
-		return updateStatus(context);
+
+		// log.error("Log No." + String.valueOf(context.counter) + " Failed to enchance
+		// the image. Doc Index: "
+		// + String.valueOf(context.getIndex()) + " Page Index: " +
+		// String.valueOf(context.getPageIndex()));
+		return context;
 	}
 
 	@Override
 	public Context fallBack() {
 		// Default implementation
-		log.error("Log No." + String.valueOf(context.counter) + " Failed to enchance the image. Doc Index: "+ String.valueOf(context.getIndex()) + " Page Index: " + String.valueOf(context.getPageIndex()));
-		return updateStatus(context);
+//		log.error("Log No." + String.valueOf(context.counter) + " Fallback - Failed to enchance the image. Doc Index: "
+//				+ String.valueOf(context.getIndex()) + " Page Index: " + String.valueOf(context.getPageIndex()));
+		context = updateContextStatusDescription(context, "| Fallback during contrast enhancement API call at page " + String.valueOf(context.getPageIndex()) + " ");
+		return context;
 	}
-	
-	public Context updateStatus(Context context) {
-		// techincal error T2
-		String statusCode = "2";
-		String statusDescription = "Contrast Enhancement Failed";
-		context.getStatus().setStatus(statusCode);
-		context.getStatus().setStatusDescription(statusDescription);
+
+	public Context updateContextStatusDescription(Context context, String description) {
+		String message = context.getStatus().getStatusDescription();
+		message += description;
+		context.getStatus().setStatusDescription(message);
 		return context;
 	}
 
 }
-

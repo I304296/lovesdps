@@ -108,7 +108,7 @@ public class HANAService implements IServer {
 				}
 			}
 		} catch (RuntimeException e) {
-			log.error("Log No." + String.valueOf(context.counter) + " Failed to " + operation + " " + entity + ": " + e.getMessage());
+			log.error("Log No." + String.valueOf(context.counter) + " Exception during operation " + operation + " " + entity + ": " + e.getMessage());
 		}
 
 		return context;

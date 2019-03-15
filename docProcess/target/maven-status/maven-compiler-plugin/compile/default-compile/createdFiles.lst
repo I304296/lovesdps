@@ -1,7 +1,6 @@
 com/sap/loves/docProcess/pojo/Document.class
 com/sap/loves/docProcess/comm/PDFStitchingService.class
 com/sap/loves/docProcess/pojo/Page.class
-com/sap/loves/docProcess/comm/MISCStoreService.class
 com/sap/loves/docProcess/comm/HANAService.class
 com/sap/loves/docProcess/pojo/RateConfirmation.class
 com/sap/loves/docProcess/pojo/Load.class

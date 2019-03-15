@@ -4,7 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import com.sap.loves.docProcess.api.ApiController;
@@ -21,12 +24,11 @@ public class BlurScoreService implements IServer {
 	}
 
 	@Override
-	public Context execute() {
+	public Context execute(){
 		String base64content = context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()]
 				.getContent();
-		// Call Blur service using RestTemplate
 
-		String response = "";
+		ResponseEntity<String> response = null;
 		String requestJson = "{\"img\":\"";
 		RestTemplate restTemplate = new RestTemplate();
 
@@ -34,23 +36,23 @@ public class BlurScoreService implements IServer {
 		headers.setContentType(MediaType.APPLICATION_JSON);
 		requestJson += base64content + "\"}";
 
-		HttpEntity<String> entity = new HttpEntity<String>(requestJson, headers);
-
-//		log.info("Log No." + String.valueOf(context.counter) + " Check blurriness for content: " + requestJson);
+		HttpEntity<String> request = new HttpEntity<String>(requestJson, headers);
 
 		try {
-			response += restTemplate.postForObject(url, entity, String.class);
+			response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 		} catch (RuntimeException e) {
 			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+			context = updateContextStatusDescription(context, "| Exception during blur detection api call");
 		}
-
-		double score = Double.parseDouble(response);
-		// log.info("Log No." + String.valueOf(context.counter) + " Blurness Score: "+
-		// score +" Doc Index: "+String.valueOf(context.getIndex())+" Page Index:
-		// "+String.valueOf(context.getPageIndex()));
-
-		context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setBlurScore(score);
-		return this.context;
+		
+		if (response.getStatusCode() == HttpStatus.OK) {
+			double score = Double.parseDouble(response.getBody());
+			context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setBlurScore(score);
+		} else {
+			context = updateContextStatusDescription(context, "| Error during blur detection api call");
+		}
+		
+		return context;
 	}
 
 	@Override
@@ -60,6 +62,15 @@ public class BlurScoreService implements IServer {
 				+ context.getPageIndex() + " document: " + context.getStatus().getFileName()
 				+ "Setting the default score 2000");
 		context.getLoad().getDocuments()[context.getIndex()].getPages()[context.getPageIndex()].setBlurScore(2000);
+		context = updateContextStatusDescription(context, "| Fallback during blur detection api call");
+		
+		return context;
+	}
+	
+	public Context updateContextStatusDescription(Context context, String description) {
+		String message = context.getStatus().getStatusDescription();
+		message += description;
+		context.getStatus().setStatusDescription(message);
 		return context;
 	}
 

@@ -31,10 +31,10 @@ def img_to_pdf():
     
     pdfdata = img2pdf.convert(pagescontent)
 
-    file = open(filename + '.pdf', 'wb')
+    file = open(filename, 'wb')
     file.write(pdfdata)
 
-    file = open(filename + '.pdf', 'rb')
+    file = open(filename, 'rb')
     files = {'file': file}
     res = requests.post(api + upload_object_path, files=files)
     return res.text

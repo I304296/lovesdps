@@ -32,6 +32,7 @@ public class Status {
 		  this.date = date;
 		  this.documentType = documentType;
 	      this.fileName = fileName;
+	      this.pageCount = pageCount;
 		  this.status = status;		
 		  this.statusDescription = statusDescription;
 	}

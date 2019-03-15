@@ -14,17 +14,14 @@ import com.netflix.hystrix.HystrixCommandGroupKey;
 import com.netflix.hystrix.HystrixCommandProperties;
 import com.netflix.hystrix.HystrixThreadPoolProperties;
 import com.sap.loves.docProcess.api.ApiController;
-import com.sap.loves.docProcess.comm.BillOfLadingHANAService;
 import com.sap.loves.docProcess.comm.BlurScoreService;
 import com.sap.loves.docProcess.comm.ContrastEnhanceService;
 import com.sap.loves.docProcess.comm.HANAService;
-import com.sap.loves.docProcess.comm.MISCStoreService;
+import com.sap.loves.docProcess.comm.FileStoreService;
 import com.sap.loves.docProcess.comm.PDFConvertService;
 import com.sap.loves.docProcess.comm.PDFStitchingService;
-import com.sap.loves.docProcess.comm.PDFStoreService;
 import com.sap.loves.docProcess.comm.RateConfirmationHANAService;
 import com.sap.loves.docProcess.comm.RemoteCall;
-import com.sap.loves.docProcess.comm.TestServer;
 import com.sap.loves.docProcess.pojo.BillOfLading;
 import com.sap.loves.docProcess.pojo.Context;
 import com.sap.loves.docProcess.pojo.Load;
@@ -35,7 +32,6 @@ import com.sap.loves.docProcess.pojo.Status;
 import com.sap.loves.docProcess.utility.DestinationProxy;
 
 import org.json.JSONException;
-import org.json.JSONObject;
 
 public class ProcessDocuments {
 
@@ -83,7 +79,8 @@ public class ProcessDocuments {
 
 		try {
 			this.load = load;
-			int bolCounter = 1;
+			int bolCounter = 0;
+			int miscCounter = 0;
 			for (int i = 0; i < load.getDocuments().length; i++) {
 				// Initialize Context data
 				Context ctx = new Context(i);
@@ -91,18 +88,16 @@ public class ProcessDocuments {
 				ctx.counter = 0;
 				ctx.setExist(false);
 
-				// Skip Document Process for MISC files and send them to object store directly
 				if (load.getDocuments()[i].getDocumentType().equals("MISC")) {
-					String filename = load.getDocuments()[i].getPages()[0].getDocumentFormat();
-					Context ctx1 = new Context(i);
-					ctx1.setLoad(load);
-					ctx1 = new RemoteCall(fileStoreHystrixConfig, new MISCStoreService(ctx1, fileStoreApi, objectStoreApi, filename),
-							ctx1).execute();
-					break;
+					ctx.setMiscCounter(++miscCounter);
+					CompletableFuture.supplyAsync(() -> prepareStatusData(ctx), ioBound)
+							.thenApply(contextData -> saveStatusData(contextData))
+							.thenAccept(contextData -> saveMISC(contextData));
+					continue;
 				}
 
 				if (load.getDocuments()[i].getDocumentType().equals("BOL")) {
-					ctx.setBolCounter(bolCounter++);
+					ctx.setBolCounter(++bolCounter);
 				}
 				CompletableFuture.supplyAsync(() -> prepareRCData(ctx), ioBound)
 						.thenApply(contextData -> prepareBOLData(contextData))
@@ -114,10 +109,10 @@ public class ProcessDocuments {
 						// 3. Save BOL
 						// .thenApply(contextData -> prepareBOLData(contextData))
 						.thenApply(contextData -> saveBOLData(contextData))
-						// 4. Call Blur detection per page
-						.thenApply(contextData -> checkBlurScore(contextData))
-						// 5. Call Contrast enhancement per page
+						// 4. Call Contrast enhancement per page
 						.thenApply(contextData -> enhanceContrast(contextData))
+						// 5. Call Blur detection per page
+						.thenApply(contextData -> checkBlurScore(contextData))
 						// 6. Convert Image to PDF and store to Object Store
 						.thenApply(contextData -> convertPDFandSaveToObjectStore(contextData))
 						// 7. Stitch PDF
@@ -132,45 +127,70 @@ public class ProcessDocuments {
 		return msg;
 	}
 
-	// 1.Save Load status data
+	public Context saveMISC(Context context) {
+		context = new RemoteCall(fileStoreHystrixConfig,
+				new FileStoreService(context, fileStoreApi, objectStoreApi, context.getStatus().getFileName()), context)
+						.execute();
+		return context;
+	}
+
+	// Check if entry exists via ODATA GET
+	public boolean loadEntryExists(Context context) {
+		log.info("Log No." + String.valueOf(++context.counter) + ": Checking Duplicated Status Data");
+		try {
+			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "Status", "GET"), context)
+					.execute();
+		} catch (Exception e) {
+			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
+		}
+		return context.isExist();
+	}
+
+	// 1.Prepare Load status data
 	public Context prepareStatusData(Context context) {
-		// this.log.info(String.valueOf(++context.counter)+":Preparing Status Data");
-
 		String statusCode = statusCodeInitiated;
-		String statusDescription = "Initial Posting";
+		String statusDescription = "Initial Posting ";
 
-		String fileName = "";
 		String documentType = "";
+		String fileName = "";
 		if (context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("BOL")) {
 			documentType = context.getLoad().getDocuments()[context.getIndex()].getDocumentType()
 					+ String.valueOf(context.getBolCounter());
 		} else {
 			documentType = context.getLoad().getDocuments()[context.getIndex()].getDocumentType();
 		}
-		fileName = documentType + "_" + context.getLoad().getDebtorName() + "_" + context.getLoad().getLoadNo() + "_"
+
+		fileName = context.getLoad().getDebtorName() + "_" + context.getLoad().getLoadNo() + "_"
 				+ context.getLoad().getDate();
 
-		log.info("Log No." + String.valueOf(++context.counter) + ": Preparing Status Data for " + fileName);
+		if (context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("MISC")) {
+			// Add file extension for MISC files
+			fileName += "_MISC" + String.valueOf(context.getMiscCounter()) + "." + context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat();
+			documentType += String.valueOf(context.getMiscCounter());
+		} else {
+			fileName = documentType + "_" + fileName + ".pdf";
+			List<String> filenames = this.load.getFilenames();
+			// log.info("Log No." + String.valueOf(context.counter) + ": current file list "
+			// + filenames + " ");
 
-		List<String> filenames = this.load.getFilenames();
-		// log.info("Log No." + String.valueOf(context.counter) + ": current file list "
-		// + filenames + " ");
+			// add filename into filenames
+			filenames.add(fileName);
+			this.load.setFilenames(filenames);
 
-		// add filename into filenames
-		filenames.add(fileName);
-		this.load.setFilenames(filenames);
-
-		// combined name = debtorName + LoadNo + Date + "_" + debotName ....
-		String stitchedPdfName = this.load.getStitchedPdfName();
-		stitchedPdfName += documentType + "_";
-		this.load.setStitchedPdfName(stitchedPdfName);
+			// combined name = debtorName + LoadNo + Date + "_" + debotName ....
+			String stitchedPdfName = this.load.getStitchedPdfName();
+			stitchedPdfName += documentType + "_";
+			this.load.setStitchedPdfName(stitchedPdfName);
+		}
 
 		// Map status data
 		Status statusdata = new Status(context.getLoad().getGUID(), context.getLoad().getLoadNo(),
 				context.getLoad().getDebtorName(), context.getLoad().getDate(), documentType, fileName,
-				context.getLoad().getDocuments().length, statusCode, statusDescription);
+				context.getLoad().getDocuments()[context.getIndex()].getPages().length, statusCode, statusDescription);
 
 		context.setStatus(statusdata);
+
+		log.info("Log No." + String.valueOf(++context.counter) + ": Preparing Status Data for " + fileName);
 
 		// Check for duplicated data
 		if (loadEntryExists(context)) {
@@ -181,7 +201,7 @@ public class ProcessDocuments {
 		// Re-submission
 		if (context.isExist()) {
 			statusCode = statusCodeResubmission;
-			statusDescription = "Re-submission";
+			statusDescription = "Re-submission ";
 			context.getStatus().setStatus(statusCode);
 			context.getStatus().setStatusDescription(statusDescription);
 		}
@@ -199,22 +219,17 @@ public class ProcessDocuments {
 				log.error("Log No." + String.valueOf(context.counter) + ": " + e.getMessage());
 			}
 		} else {
-			log.info("Log No." + String.valueOf(context.counter) + ": Staus data exists, updating Status Data");
+			log.info("Log No." + String.valueOf(context.counter) + ": Staus data already exists, updating Status Data");
 			updateStatus(context);
 		}
 		return context;
 	}
 
-	// Check if entry exists via ODATA GET
-	public boolean loadEntryExists(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + ": Checking Duplicated Status Data");
-		try {
-			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "Status", "GET"), context)
-					.execute();
-		} catch (Exception e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-		}
-		return context.isExist();
+	public Context updateContextStatusDescription(Context context, String description) {
+		String message = context.getStatus().getStatusDescription();
+		message += description;
+		context.getStatus().setStatusDescription(message);
+		return context;
 	}
 
 	public Context updateStatus(Context context) {
@@ -269,7 +284,9 @@ public class ProcessDocuments {
 		}
 		log.info("Log No." + String.valueOf(++context.counter) + ": Saving Rate Confirmation Data");
 		try {
-			context = new RemoteCall(hanaHystrixConfig, new RateConfirmationHANAService(context, hanaApi + "RateConfirmation", "POST"), context).execute();
+			Thread.sleep(1000);
+			context = new RemoteCall(hanaHystrixConfig,
+					new RateConfirmationHANAService(context, hanaApi + "RateConfirmation", "POST"), context).execute();
 		} catch (Exception e) {
 			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
 		}
@@ -309,10 +326,12 @@ public class ProcessDocuments {
 		}
 		log.info("Log No." + String.valueOf(context.counter) + ": Saving Bill of Lading Data");
 		try {
-//			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "BillOfLading", "POST"),
-//					context).execute();
-					
-			context = new RemoteCall(hanaHystrixConfig, new BillOfLadingHANAService(context, hanaApi + "BillOfLading", "POST"), context).execute();
+			Thread.sleep(1000);
+			context = new RemoteCall(hanaHystrixConfig, new HANAService(context, hanaApi, "BillOfLading", "POST"),
+					context).execute();
+			// context = new RemoteCall(hanaHystrixConfig,
+			// new BillOfLadingHANAService(context, hanaApi + "BillOfLading", "POST"),
+			// context).execute();
 		} catch (Exception e) {
 			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
 		}
@@ -322,16 +341,16 @@ public class ProcessDocuments {
 	public Context checkBlurScore(Context context) {
 		// Skip this step and send PDF to object store
 		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
-			context = new RemoteCall(fileStoreHystrixConfig, new PDFStoreService(context, fileStoreApi, objectStoreApi),
+			context = new RemoteCall(fileStoreHystrixConfig,
+					new FileStoreService(context, fileStoreApi, objectStoreApi, context.getStatus().getFileName()),
 					context).execute();
 			return context;
 		}
 		int pageIndex = 0;
-		String message = "";
-		log.info("Log No." + String.valueOf(++context.counter) + ":Getting Blur score");
+		log.info("Log No." + String.valueOf(++context.counter) + ": Getting Blur score ");
 
 		try {
-			double thrshold = 2000.0; // Todo: Call method to get threshold from destination
+			double threshold = 2000.0;
 			for (pageIndex = 0; pageIndex < context.getLoad().getDocuments()[context.getIndex()]
 					.getPages().length; pageIndex++) {
 				context.setPageIndex(pageIndex);
@@ -339,31 +358,16 @@ public class ProcessDocuments {
 						context).execute();
 				// If image score less than and equal to threshold -> consider image blurry
 				if (context.getLoad().getDocuments()[context.getIndex()].getPages()[pageIndex]
-						.getBlurScore() <= thrshold) {
-					message = "Page " + String.valueOf(pageIndex + 1) + " is blurry.";
-					// Construct Status
-					// Map status data
-					// Status statusdata = new Status(context.getStatus().getGUID(),
-					// context.getStatus().getLoadNo(),
-					// context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					// context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					// context.getStatus().getPageCount(), statusCodeBlurred, message);
-					// context.setStatus(statusdata);
-					// context = updateStatus(context);
+						.getBlurScore() < threshold) {
+					context = updateContextStatusDescription(context,
+							"| Page " + String.valueOf(pageIndex + 1) + " is blurry ");
+					context = updateStatus(context);
 				}
 			}
 		} catch (Exception e) {
 			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-			message += "Error during Blur Detection.Page:" + String.valueOf(pageIndex) + ".";
-			// Construct Status
-			// Map status data
-			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-					context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					context.getStatus().getPageCount(), statusCodeConrastFailed, message);
-			// Update Context
-			context.setStatus(statusdata);
-			// Update DB
+			context = updateContextStatusDescription(context, "| Error during blur detection API call ");
+			context.getStatus().setStatus("T" + statusCodeBlurred);
 			context = updateStatus(context);
 		}
 		return context;
@@ -375,8 +379,7 @@ public class ProcessDocuments {
 			return context;
 		}
 		int pageIndex = 0;
-		String message = "";
-		log.info("Log No." + String.valueOf(++context.counter) + ": Enhancing contrast of the images");
+		log.info("Log No." + String.valueOf(++context.counter) + ": Enhancing contrast of the images ");
 
 		try {
 			for (pageIndex = 0; pageIndex < context.getLoad().getDocuments()[context.getIndex()]
@@ -384,19 +387,15 @@ public class ProcessDocuments {
 				context.setPageIndex(pageIndex);
 				context = new RemoteCall(contrastEnhancementHystrixConfig,
 						new ContrastEnhanceService(context, contrastEnhancementApi), context).execute();
+				context = updateStatus(context);
 			}
 		} catch (Exception e) {
 			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-			message += "Error during Contrast Enhancement.Page:" + String.valueOf(pageIndex) + ".";
-			// Construct Status
-			// Map status data
-			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-					context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					context.getStatus().getPageCount(), statusCodeConrastFailed, message);
-			context.setStatus(statusdata);
+			context = updateContextStatusDescription(context, "| Error during contrast enhancement API call at page "
+					+ String.valueOf(context.getPageIndex()) + " ");
+			context.getStatus().setStatus("T" + statusCodeConrastFailed);
+			context = updateStatus(context);
 		}
-		context = updateStatus(context);
 		return context;
 	}
 
@@ -405,71 +404,50 @@ public class ProcessDocuments {
 		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
 			return context;
 		}
-		String message = "";
-
-		log.info("Log No." + String.valueOf(++context.counter) + ": Converting images");
-
+		log.info("Log No." + String.valueOf(++context.counter) + ": Converting images ");
 		try {
 			context = new RemoteCall(imageToPdfHystrixConfig,
 					new PDFConvertService(context, imageToPdfApi, objectStoreApi), context).execute();
+			context = updateStatus(context);
 		} catch (Exception e) {
 			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-			message += "Error during PDF conversion";
-			// Construct Status
-			// Map status data
-			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-					context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					context.getStatus().getPageCount(), statusCodePDFConvertFailed, message);
-			context.setStatus(statusdata);
-		}
-		context = updateStatus(context);
-		return context;
-	}
-
-	public Context checkProcessStatus(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + ": Checking Status for ML pickup");
-		// If All the check passed successfully
-		// log.info("Log No." + String.valueOf(context.counter) + " StatusData: " +
-		// context.getStatus().getStatus());
-
-		if (context.getStatus().getStatus().toString().equals(statusCodeInitiated)
-				|| context.getStatus().getStatus().toString().equals(statusCodeResubmission)) {
-			Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-					context.getStatus().getDebtorName(), context.getStatus().getDate(),
-					context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-					context.getStatus().getPageCount(), statusCodeObjectStoreOpsReady, "Ready for ML Process");
-
-			context.setStatus(statusdata);
+			context = updateContextStatusDescription(context, "| Error during pdf conversion API call ");
+			context.getStatus().setStatus(statusCodePDFConvertFailed);
 			context = updateStatus(context);
 		}
 		return context;
 	}
 
 	public Context stitchPDF(Context context) {
-		log.info("Log No." + String.valueOf(++context.counter) + " Checking if it's ready to stitch PDF files.");
+		log.info("Log No." + String.valueOf(++context.counter) + " Checking if it's ready to stitch PDF files. ");
 		if (context.getIndex() == context.getLoad().getDocuments().length - 1) {
 			if (context.getPageIndex() == context.getLoad().getDocuments()[context.getIndex()].getPages().length - 1) {
-				String message = "";
 				log.info("Log No." + String.valueOf(context.counter) + " Stitching all the PDF files");
-
 				try {
+					Thread.sleep(10000);
 					context = new RemoteCall(pdfStitchingHystrixConfig,
 							new PDFStitchingService(context, pdfStitchingApi, objectStoreApi), context).execute();
+					context = updateStatus(context);
 				} catch (Exception e) {
 					log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-					message += "Error during PDF stitching";
-					// Construct Status
-					// Map status data
-					Status statusdata = new Status(context.getStatus().getGUID(), context.getStatus().getLoadNo(),
-							context.getStatus().getDebtorName(), context.getStatus().getDate(),
-							context.getStatus().getDocumentType(), context.getStatus().getFileName(),
-							context.getStatus().getPageCount(), statusCodePDFConvertFailed, message);
-					// Update Context
-					context.setStatus(statusdata);
+					context = updateContextStatusDescription(context, "| Error during pdf stitching API call ");
+					context.getStatus().setStatus("T" + statusCodePDFStitchingFailed);
+					context = updateStatus(context);
 				}
 				context = updateStatus(context);
 			}
+		}
+		return context;
+	}
+
+	public Context checkProcessStatus(Context context) {
+		log.info("Log No." + String.valueOf(++context.counter) + ": Checking Status for ML pickup ");
+		// If All the check passed successfully
+		if (context.getStatus().getStatus().toString().equals(statusCodeInitiated)
+				|| context.getStatus().getStatus().toString().equals(statusCodeResubmission)) {
+			context = updateContextStatusDescription(context, "| Ready for ML Process ");
+			context.getStatus().setStatus(statusCodeObjectStoreOpsReady);
+			context = updateStatus(context);
 		}
 		return context;
 	}
@@ -527,63 +505,67 @@ public class ProcessDocuments {
 	}
 
 	// Method Overload
-	public HystrixCommand.Setter getHystrixConfig(String DestinationName) {
-
-		// Initialize with Default Value
-		int ExecutionTimeoutInMilliseconds = 180000;
-		int CircuitBreakerSleepWindowInMilliseconds = 4000;
-		boolean CircuitBreakerEnabled = true;
-		int CircuitBreakerRequestVolumeThreshold = 1;
-		boolean FallbackEnabled = true;
-
-		log.info("Inside getHystrixConfig. DestinationName=" + DestinationName);
-
-		// If destination name is supplied then get from destination
-		if (DestinationName.length() > 0 || !DestinationName.equals("default")) {
-			DestinationProxy dp = new DestinationProxy(DestinationName);
-			try {
-				ExecutionTimeoutInMilliseconds = Integer.parseInt(dp.getProperties()
-						.getJSONObject("destinationConfiguration").getString("hystrix.ExecutionTimeoutInMilliseconds"));
-				CircuitBreakerSleepWindowInMilliseconds = Integer
-						.parseInt(dp.getProperties().getJSONObject("destinationConfiguration")
-								.getString("hystrix.CircuitBreakerSleepWindowInMilliseconds"));
-				CircuitBreakerRequestVolumeThreshold = Integer
-						.parseInt(dp.getProperties().getJSONObject("destinationConfiguration")
-								.getString("hystrix.CircuitBreakerRequestVolumeThreshold"));
-				CircuitBreakerEnabled = Boolean.parseBoolean(dp.getProperties()
-						.getJSONObject("destinationConfiguration").getString("hystrix.CircuitBreakerEnabled"));
-				FallbackEnabled = Boolean.parseBoolean(dp.getProperties().getJSONObject("destinationConfiguration")
-						.getString("hystrix.FallbackEnabled"));
-
-				log.info("ExecutionTimeoutInMilliseconds:" + String.valueOf(ExecutionTimeoutInMilliseconds)
-						+ "|CircuitBreakerSleepWindowInMilliseconds:"
-						+ String.valueOf(CircuitBreakerSleepWindowInMilliseconds)
-						+ "|CircuitBreakerRequestVolumeThreshold:"
-						+ String.valueOf(CircuitBreakerRequestVolumeThreshold) + "|CircuitBreakerEnabled:"
-						+ String.valueOf(CircuitBreakerEnabled) + "|FallbackEnabled:"
-						+ String.valueOf(FallbackEnabled));
-
-			} catch (JSONException e) {
-				log.error("Destination not configured:" + e.getMessage());
-				e.printStackTrace();
-			}
-
-		}
-		HystrixCommand.Setter config = HystrixCommand.Setter
-				.withGroupKey(HystrixCommandGroupKey.Factory.asKey("RemoteServiceGroupThreadPool"));
-		HystrixCommandProperties.Setter commandProperties = HystrixCommandProperties.Setter();
-		commandProperties.withExecutionTimeoutInMilliseconds(ExecutionTimeoutInMilliseconds);
-		commandProperties.withCircuitBreakerSleepWindowInMilliseconds(CircuitBreakerSleepWindowInMilliseconds);
-		commandProperties.withExecutionIsolationStrategy(HystrixCommandProperties.ExecutionIsolationStrategy.THREAD);
-		commandProperties.withCircuitBreakerEnabled(CircuitBreakerEnabled);
-		commandProperties.withCircuitBreakerRequestVolumeThreshold(CircuitBreakerRequestVolumeThreshold);
-		commandProperties.withFallbackEnabled(FallbackEnabled);
-
-		config.andCommandPropertiesDefaults(commandProperties);
-		config.andThreadPoolPropertiesDefaults(HystrixThreadPoolProperties.Setter().withMaxQueueSize(10).withCoreSize(4)
-				.withQueueSizeRejectionThreshold(10));
-		return config;
-	}
+	// public HystrixCommand.Setter getHystrixConfig(String DestinationName) {
+	//
+	// // Initialize with Default Value
+	// int ExecutionTimeoutInMilliseconds = 180000;
+	// int CircuitBreakerSleepWindowInMilliseconds = 4000;
+	// boolean CircuitBreakerEnabled = true;
+	// int CircuitBreakerRequestVolumeThreshold = 1;
+	// boolean FallbackEnabled = true;
+	//
+	// log.info("Inside getHystrixConfig. DestinationName=" + DestinationName);
+	//
+	// // If destination name is supplied then get from destination
+	// if (DestinationName.length() > 0 || !DestinationName.equals("default")) {
+	// DestinationProxy dp = new DestinationProxy(DestinationName);
+	// try {
+	// ExecutionTimeoutInMilliseconds = Integer.parseInt(dp.getProperties()
+	// .getJSONObject("destinationConfiguration").getString("hystrix.ExecutionTimeoutInMilliseconds"));
+	// CircuitBreakerSleepWindowInMilliseconds = Integer
+	// .parseInt(dp.getProperties().getJSONObject("destinationConfiguration")
+	// .getString("hystrix.CircuitBreakerSleepWindowInMilliseconds"));
+	// CircuitBreakerRequestVolumeThreshold = Integer
+	// .parseInt(dp.getProperties().getJSONObject("destinationConfiguration")
+	// .getString("hystrix.CircuitBreakerRequestVolumeThreshold"));
+	// CircuitBreakerEnabled = Boolean.parseBoolean(dp.getProperties()
+	// .getJSONObject("destinationConfiguration").getString("hystrix.CircuitBreakerEnabled"));
+	// FallbackEnabled =
+	// Boolean.parseBoolean(dp.getProperties().getJSONObject("destinationConfiguration")
+	// .getString("hystrix.FallbackEnabled"));
+	//
+	// log.info("ExecutionTimeoutInMilliseconds:" +
+	// String.valueOf(ExecutionTimeoutInMilliseconds)
+	// + "|CircuitBreakerSleepWindowInMilliseconds:"
+	// + String.valueOf(CircuitBreakerSleepWindowInMilliseconds)
+	// + "|CircuitBreakerRequestVolumeThreshold:"
+	// + String.valueOf(CircuitBreakerRequestVolumeThreshold) +
+	// "|CircuitBreakerEnabled:"
+	// + String.valueOf(CircuitBreakerEnabled) + "|FallbackEnabled:"
+	// + String.valueOf(FallbackEnabled));
+	//
+	// } catch (JSONException e) {
+	// log.error("Destination not configured:" + e.getMessage());
+	// e.printStackTrace();
+	// }
+	//
+	// }
+	// HystrixCommand.Setter config = HystrixCommand.Setter
+	// .withGroupKey(HystrixCommandGroupKey.Factory.asKey("RemoteServiceGroupThreadPool"));
+	// HystrixCommandProperties.Setter commandProperties =
+	// HystrixCommandProperties.Setter();
+	// commandProperties.withExecutionTimeoutInMilliseconds(ExecutionTimeoutInMilliseconds);
+	// commandProperties.withCircuitBreakerSleepWindowInMilliseconds(CircuitBreakerSleepWindowInMilliseconds);
+	// commandProperties.withExecutionIsolationStrategy(HystrixCommandProperties.ExecutionIsolationStrategy.THREAD);
+	// commandProperties.withCircuitBreakerEnabled(CircuitBreakerEnabled);
+	// commandProperties.withCircuitBreakerRequestVolumeThreshold(CircuitBreakerRequestVolumeThreshold);
+	// commandProperties.withFallbackEnabled(FallbackEnabled);
+	//
+	// config.andCommandPropertiesDefaults(commandProperties);
+	// config.andThreadPoolPropertiesDefaults(HystrixThreadPoolProperties.Setter().withMaxQueueSize(10).withCoreSize(4)
+	// .withQueueSizeRejectionThreshold(10));
+	// return config;
+	// }
 
 	// Set up destinations
 	public void setUpDestinations() {

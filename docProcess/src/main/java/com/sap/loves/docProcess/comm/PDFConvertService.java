@@ -29,12 +29,9 @@ public class PDFConvertService implements IServer {
 	@Override
 	public Context execute() {
 
-		// log.info("Log No." + String.valueOf(context.counter) + " pdf conversion api:
-		// " + url);
-		// log.info("Log No." + String.valueOf(context.counter) + " object store api: "
-		// + object_store_api);
-
 		String documentName = context.getStatus().getFileName();
+//		log.info("Log No." + String.valueOf(context.counter) + " Converting images to a PDF file " +  documentName);
+
 		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"filename\": \"" + documentName
 				+ "\", \"pages\": [";
 		String imageContent = "";
@@ -43,17 +40,11 @@ public class PDFConvertService implements IServer {
 		for (int i = 0; i < context.getLoad().getDocuments()[context.getIndex()].getPages().length; i++) {
 			// Reconcile all page contents
 			imageContent = context.getLoad().getDocuments()[context.getIndex()].getPages()[i].getContent();
-			// log.info("Log No." + String.valueOf(context.counter) + " Image[" +
-			// context.getIndex() +"][" + i + "] content: " + imageContent);
-
 			requestJson += "{ \"content\": \"" + imageContent + "\"},";
 		}
 		requestJson = requestJson.substring(0, requestJson.length() - 1);
 		requestJson += "]}";
 
-		// log.info("Log No." + String.valueOf(context.counter) + " JSON Payload for
-		// document[" + context.getIndex() +"] conversion: " + requestJson);
-		// Call PDF Convert service via RestTemplate
 		RestTemplate restTemplate = new RestTemplate();
 
 		HttpHeaders headers = new HttpHeaders();
@@ -65,29 +56,28 @@ public class PDFConvertService implements IServer {
 		try {
 			response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 		} catch (RuntimeException e) {
-			log.error(e.getMessage());
+			context = updateContextStatusDescription(context, "| Exception during pdf conversion API call ");
 		}
 
-		if (response.getStatusCode() == HttpStatus.OK) {
-//			log.info("Log No." + String.valueOf(context.counter) + " All images have been converted to PDF file. " + response.getBody());
-			return context;
+		if (response.getStatusCode() != HttpStatus.OK) {
+			context = updateContextStatusDescription(context, "| Error during pdf conversion API call at ");
 		}
 
-		log.error("Log No." + String.valueOf(context.counter) + " Failed to convert images to a PDF file.");
-		return updateStatus(context);
+		return context;
 	}
 
 	@Override
 	public Context fallBack() {
 		log.error("Log No." + String.valueOf(context.counter) + " Failed to convert images to a PDF file.");
-		return updateStatus(context);
+		context = updateContextStatusDescription(context, "| Fallback during pdf conversion API call ");
+		return context;
 	}
 
-	public Context updateStatus(Context context) {
-		String statusCode = "3";
-		String statusDescription = "PDF Conversion Failed";
-		context.getStatus().setStatus(statusCode);
-		context.getStatus().setStatusDescription(statusDescription);
+	public Context updateContextStatusDescription(Context context, String description) {
+		String message = context.getStatus().getStatusDescription();
+		message += description;
+		context.getStatus().setStatusDescription(message);
+		context.getStatus().setStatus("3");
 		return context;
 	}
 

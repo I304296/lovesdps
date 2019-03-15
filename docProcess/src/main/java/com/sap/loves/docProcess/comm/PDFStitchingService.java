@@ -36,7 +36,7 @@ public class PDFStitchingService implements IServer {
 		for (int i = 0; i < filenames.size(); i++) {
 //			log.info("Log No." + String.valueOf(context.counter) + " " + filenames.get(i) + " stitched!");
 			// stitchedPdfName += filenames.get(i) + "_";
-			files += "{\"name\":\"" + filenames.get(i) + ".pdf\"},";
+			files += "{\"name\":\"" + filenames.get(i) + "\"},";
 		}
 		files = files.substring(0, files.length() - 1) + "]";
 		stitchedPdfName += context.getLoad().getDebtorName() + "_" + context.getLoad().getLoadNo() + "_"
@@ -48,7 +48,7 @@ public class PDFStitchingService implements IServer {
 		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"outputname\": \"" + stitchedPdfName
 				+ "\", \"files\": " + files + "}";
 
-		log.info("Log No." + String.valueOf(context.counter) + " payload for stitching: " + requestJson);
+//		log.info("Log No." + String.valueOf(context.counter) + " payload for stitching: " + requestJson);
 
 		// Call PDF Stitching service via RestTemplate
 		RestTemplate restTemplate = new RestTemplate();
@@ -62,30 +62,27 @@ public class PDFStitchingService implements IServer {
 		try {
 			response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 		} catch (RuntimeException e) {
-			log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
-			return updateStatus(context);
+			context = updateContextStatusDescription(context, "| Exception during pdf stitching API call ");
 		}
 
-		if (response.getStatusCode() == HttpStatus.OK) {
-			log.info("Log No." + String.valueOf(context.counter) + " All PDF files have been stitched. ");
-			return context;
+		if (response.getStatusCode() != HttpStatus.OK) {
+			context = updateContextStatusDescription(context, "| Error during pdf stitching API call at ");
 		}
 
-		log.info("Log No." + String.valueOf(context.counter) + " Failed to stitched pdf files document: " + response.getBody());
-		return updateStatus(context);
+		return context;
 	}
 
 	@Override
 	public Context fallBack() {
-		log.info("Log No." + String.valueOf(context.counter) + " Fallback Failed to stitched pdf files document. ");
-		return updateStatus(context);
+		log.error("Log No." + String.valueOf(context.counter) + " Fallback Failed to stitched pdf files document. ");
+		context = updateContextStatusDescription(context, "| Fallback during pdf stitching API call ");
+		return context;
 	}
 
-	public Context updateStatus(Context context) {
-		String statusCode = "11";
-		String statusDescription = "PDF Stitching Failed";
-		context.getStatus().setStatus(statusCode);
-		context.getStatus().setStatusDescription(statusDescription);
+	public Context updateContextStatusDescription(Context context, String description) {
+		String message = context.getStatus().getStatusDescription();
+		message += description;
+		context.getStatus().setStatusDescription(message);
 		return context;
 	}
 

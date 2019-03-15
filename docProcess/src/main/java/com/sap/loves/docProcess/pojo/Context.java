@@ -10,6 +10,7 @@ public class Context {
 	private RateConfirmation rc;
     private BillOfLading bol;
     private int bolCounter;
+    private int miscCounter;
     private boolean exist;
 
 	public Context() {
@@ -103,6 +104,14 @@ public class Context {
 
 	public void setBolCounter(int bolCounter) {
 		this.bolCounter = bolCounter;
+	}
+
+	public int getMiscCounter() {
+		return miscCounter;
+	}
+
+	public void setMiscCounter(int miscCounter) {
+		this.miscCounter = miscCounter;
 	}
 
 }
