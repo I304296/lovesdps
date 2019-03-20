@@ -4,3 +4,4 @@ applications:
   disk_quota: 1024MB
   random-route: true
   name: dps-image-to-pdf-dev
+  host: dps-image-to-pdf-dev

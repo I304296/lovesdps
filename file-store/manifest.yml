@@ -4,3 +4,4 @@ applications:
   disk_quota: 1024MB
   random-route: true
   name: dps-file-store-dev
+  host: dps-file-store-dev

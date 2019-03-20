@@ -62,6 +62,11 @@ public class ProcessDocuments {
 	private String imageToPdfApi = "";
 	private String pdfStitchingApi = "";
 	private String fileStoreApi = "";
+	
+	private String miscFolder = "";
+	private String rcFolder = "";
+	private String bolFolder = "";
+	private String stitchedPdfFolder = "";
 
 	private HystrixCommand.Setter hanaHystrixConfig;
 	private HystrixCommand.Setter blurDetectionHystrixConfig;
@@ -167,8 +172,13 @@ public class ProcessDocuments {
 			// Add file extension for MISC files
 			fileName += "_MISC" + String.valueOf(context.getMiscCounter()) + "." + context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat();
 			documentType += String.valueOf(context.getMiscCounter());
+			fileName = miscFolder + "/" + fileName;
 		} else {
-			fileName = documentType + "_" + fileName + ".pdf";
+			if(context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("BOL")) {
+				fileName = bolFolder + "/" + documentType + "_" + fileName + ".pdf";
+			}else if(context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("RC")) {
+				fileName = rcFolder + "/" + documentType + "_" + fileName + ".pdf";
+			}
 			List<String> filenames = this.load.getFilenames();
 			// log.info("Log No." + String.valueOf(context.counter) + ": current file list "
 			// + filenames + " ");
@@ -340,10 +350,7 @@ public class ProcessDocuments {
 
 	public Context checkBlurScore(Context context) {
 		// Skip this step and send PDF to object store
-		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
-			context = new RemoteCall(fileStoreHystrixConfig,
-					new FileStoreService(context, fileStoreApi, objectStoreApi, context.getStatus().getFileName()),
-					context).execute();
+		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equalsIgnoreCase("PDF")) {
 			return context;
 		}
 		int pageIndex = 0;
@@ -375,7 +382,10 @@ public class ProcessDocuments {
 
 	public Context enhanceContrast(Context context) {
 		// Skip this step for PDF
-		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
+		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equalsIgnoreCase("PDF")) {
+			context = new RemoteCall(fileStoreHystrixConfig,
+					new FileStoreService(context, fileStoreApi, objectStoreApi, context.getStatus().getFileName()),
+					context).execute();
 			return context;
 		}
 		int pageIndex = 0;
@@ -401,7 +411,7 @@ public class ProcessDocuments {
 
 	public Context convertPDFandSaveToObjectStore(Context context) {
 		// Skip this step for PDF
-		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equals("PDF")) {
+		if (context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().equalsIgnoreCase("PDF")) {
 			return context;
 		}
 		log.info("Log No." + String.valueOf(++context.counter) + ": Converting images ");
@@ -424,9 +434,9 @@ public class ProcessDocuments {
 			if (context.getPageIndex() == context.getLoad().getDocuments()[context.getIndex()].getPages().length - 1) {
 				log.info("Log No." + String.valueOf(context.counter) + " Stitching all the PDF files");
 				try {
-					Thread.sleep(10000);
+					Thread.sleep(30000);
 					context = new RemoteCall(pdfStitchingHystrixConfig,
-							new PDFStitchingService(context, pdfStitchingApi, objectStoreApi), context).execute();
+							new PDFStitchingService(context, pdfStitchingApi, objectStoreApi, stitchedPdfFolder), context).execute();
 					context = updateStatus(context);
 				} catch (Exception e) {
 					log.error("Log No." + String.valueOf(context.counter) + " " + e.getMessage());
@@ -622,8 +632,12 @@ public class ProcessDocuments {
 			fileStoreDp = new DestinationProxy("FileStoreDest");
 			fileStoreApi = fileStoreDp.getProperties().getJSONObject("destinationConfiguration").getString("URL");
 			fileStoreHystrixConfig = getHystrixConfig(fileStoreDp);
+			miscFolder = fileStoreDp.getProperties().getJSONObject("destinationConfiguration").getString("misc_folder");
+			rcFolder = fileStoreDp.getProperties().getJSONObject("destinationConfiguration").getString("rc_folder");
+			bolFolder = fileStoreDp.getProperties().getJSONObject("destinationConfiguration").getString("bol_folder");
+			stitchedPdfFolder = fileStoreDp.getProperties().getJSONObject("destinationConfiguration").getString("stitched_pdf_folder");
 		} catch (JSONException e) {
-			log.error("PDF Store Service Destination is not configured:" + e.getMessage());
+			log.error("File Store Service Destination is not configured:" + e.getMessage());
 			e.printStackTrace();
 		}
 	}

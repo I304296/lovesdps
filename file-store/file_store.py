@@ -20,9 +20,12 @@ def img_to_pdf():
     request_json = request.get_json()
     base64content = request_json.get('content')
     filename = request_json.get('filename')
+    folder = request_json.get('folder')
     api = request_json.get('object_store_api')
-    upload_object_path = '/api/uploadObject?path=TESTING/'
-
+    upload_object_path = '/api/uploadObject?path=' + folder
+    if folder != '':
+        upload_object_path += '/'
+    
     pdfdata = base64.b64decode(str(base64content))
     
     file = open(filename, 'wb')
@@ -31,6 +34,7 @@ def img_to_pdf():
     file = open(filename, 'rb')
     files = {'file': file}
     res = requests.post(api + upload_object_path, files=files)
+    os.remove(filename)
     return res.text
 
 if __name__ == '__main__':

@@ -18,13 +18,15 @@ import com.sap.loves.docProcess.pojo.Context;
 public class PDFStitchingService implements IServer {
 	private String url;
 	private String object_store_api;
+	private String folder;
 	private Context context;
 	final static Logger log = LoggerFactory.getLogger(ApiController.class);
 
-	public PDFStitchingService(Context context, String url, String object_store_api) {
+	public PDFStitchingService(Context context, String url, String object_store_api, String folder) {
 		this.context = context;
 		this.object_store_api = object_store_api;
 		this.url = url;
+		this.folder = folder;
 	}
 
 	@Override
@@ -45,10 +47,10 @@ public class PDFStitchingService implements IServer {
 		// log.info("Log No." + String.valueOf(context.counter) + " files: " + files);
 //		log.info("Log No." + String.valueOf(context.counter) + " pdf name: " + stitchedPdfName);
 
-		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"outputname\": \"" + stitchedPdfName
+		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"folder\": \"" + folder + "\", \"outputname\": \"" + stitchedPdfName
 				+ "\", \"files\": " + files + "}";
 
-//		log.info("Log No." + String.valueOf(context.counter) + " payload for stitching: " + requestJson);
+		log.info("Log No." + String.valueOf(context.counter) + " payload for stitching: " + requestJson);
 
 		// Call PDF Stitching service via RestTemplate
 		RestTemplate restTemplate = new RestTemplate();

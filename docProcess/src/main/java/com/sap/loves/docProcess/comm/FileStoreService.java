@@ -31,7 +31,10 @@ public class FileStoreService implements IServer {
 	@Override
 	public Context execute() {
 		String fileContent = context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getContent();
-		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"filename\": \"" + filename
+		String[] parts = filename.split("/");
+		String folder = parts[0];
+		String realFilename = parts[1];
+		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"folder\": \"" + folder + "\", \"filename\": \"" + realFilename
 				+ "\", \"content\": \"" + fileContent + "\"}";
 
 		RestTemplate restTemplate = new RestTemplate();

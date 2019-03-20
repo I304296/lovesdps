@@ -28,11 +28,13 @@ public class PDFConvertService implements IServer {
 
 	@Override
 	public Context execute() {
-
-		String documentName = context.getStatus().getFileName();
+		String filename = context.getStatus().getFileName();
 //		log.info("Log No." + String.valueOf(context.counter) + " Converting images to a PDF file " +  documentName);
-
-		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"filename\": \"" + documentName
+		String[] parts = filename.split("/");
+		String folder = parts[0];
+		String realFilename = parts[1];
+		
+		String requestJson = "{\"object_store_api\": \"" + object_store_api + "\", \"folder\": \"" + folder + "\", \"filename\": \"" + realFilename
 				+ "\", \"pages\": [";
 		String imageContent = "";
 
