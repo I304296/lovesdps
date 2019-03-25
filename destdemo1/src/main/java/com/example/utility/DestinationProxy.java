@@ -28,7 +28,7 @@ import com.example.demo.Controller;
 
 public class DestinationProxy {
 	
-	final static Logger log = LoggerFactory.getLogger(Controller.class);
+	final static Logger log = LoggerFactory.getLogger(DestinationProxy.class);
 	final String DestinationAPIPath = "/destination-configuration/v1/destinations/";
 	private String DestinationName;
 

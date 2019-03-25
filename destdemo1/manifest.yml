@@ -1,7 +1,7 @@
 ---
 applications:
 - name: dest
-  host: dest-dev
+  host: dest-d
   path: ./target/destdemo1-0.0.1-SNAPSHOT.jar
   memory: 1024M
   instances: 1
