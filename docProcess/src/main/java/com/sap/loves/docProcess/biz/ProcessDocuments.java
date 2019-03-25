@@ -78,7 +78,7 @@ public class ProcessDocuments {
 	final static Logger log = LoggerFactory.getLogger(ApiController.class);
 
 	public Message doProcess(Load load) throws RuntimeException {
-		Message msg = new Message(200, "ok");
+		Message msg = new Message(200, "Payload Recieved: Being Processed");
 
 		setUpDestinations();
 

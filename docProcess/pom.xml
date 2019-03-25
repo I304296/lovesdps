@@ -137,6 +137,12 @@
 			<artifactId>sapjwt.darwinintel64</artifactId>
 			<version>1.1.19</version>
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.springframework.security/spring-security-config -->
+		<dependency>
+		    <groupId>org.springframework.security</groupId>
+		    <artifactId>spring-security-config</artifactId>
+		    <version>3.2.0.RELEASE</version>
+		</dependency>
 
 
 	</dependencies>

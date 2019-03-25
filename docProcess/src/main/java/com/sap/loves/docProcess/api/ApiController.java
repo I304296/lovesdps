@@ -1,10 +1,10 @@
 package com.sap.loves.docProcess.api;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,7 +12,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sap.loves.docProcess.biz.ProcessDocuments;
-import com.sap.loves.docProcess.pojo.*;
+import com.sap.loves.docProcess.pojo.Document;
+import com.sap.loves.docProcess.pojo.Load;
+import com.sap.loves.docProcess.pojo.Message;
+import com.sap.loves.docProcess.pojo.Page;
 
 @RestController
 @RequestMapping("/rest/api/load")
@@ -21,15 +24,15 @@ public class ApiController {
 	final static Logger log = LoggerFactory.getLogger(ApiController.class);
 	
 	@GetMapping
-	public Load doGet() {
-		return defaultResponseObject();
+	public ResponseEntity<Load> doGet() {
+		Load load = defaultResponseObject();
+		return new ResponseEntity<Load>(load, HttpStatus.OK);
 
 	}
 	
-	@PostMapping(	consumes = {MediaType.APPLICATION_JSON_VALUE},
-					produces = {MediaType.APPLICATION_JSON_VALUE}	)
-	public Message doPost(@RequestBody Load requestedLoad) {
-		Message returnMessage = new Message(200,"ok");
+	@PostMapping(	consumes = {MediaType.APPLICATION_JSON_VALUE}	)
+	public ResponseEntity<Message> doPost(@RequestBody Load requestedLoad) {
+		Message returnMessage = new Message(200,"Payload Recieved");
 		
 		try {
 			//test
@@ -43,7 +46,7 @@ public class ApiController {
 			e.printStackTrace();
 		}*/
 //		LoadReturn responseLoad = new LoadReturn(returnMessage);
-		return returnMessage;
+		return new ResponseEntity<Message>(returnMessage,HttpStatus.CREATED);
 	}
 	
 	//Dummy implementation
