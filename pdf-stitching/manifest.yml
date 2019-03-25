@@ -4,3 +4,4 @@ applications:
   disk_quota: 1024MB
   random-route: true
   name: dps-pdf-stitching-dev
+  host: dps-pdf-stitching-dev

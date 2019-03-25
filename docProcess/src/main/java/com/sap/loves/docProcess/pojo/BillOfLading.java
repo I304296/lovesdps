@@ -1,5 +1,7 @@
 package com.sap.loves.docProcess.pojo;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class BillOfLading {
 	private String GUID;        //key
 	private String loadNo;      //key
@@ -21,19 +23,17 @@ public class BillOfLading {
 	private String shipFromConfidence;
 	
 	public BillOfLading() {}
-
 	
-	
-	public BillOfLading(String gUID, String loadNo, String debtorName, String date, String bOLID, String receiverName,
+	public BillOfLading(String GUID, String loadNo, String debtorName, String date, String BOLID, String receiverName,
 			String receiverNameML, String receiverNameConfidence, String shipperName, String shipperNameML,
 			String shipperNameConfidence, String shipTo, String shipToML, String shipToConfidence, String shipFrom,
 			String shipFromML, String shipFromConfidence) {
 		super();
-		GUID = gUID;
+		this.GUID = GUID;
 		this.loadNo = loadNo;
 		this.debtorName = debtorName;
 		this.date = date;
-		BOLID = bOLID;
+		this.BOLID = BOLID;
 		this.receiverName = receiverName;
 		this.receiverNameML = receiverNameML;
 		this.receiverNameConfidence = receiverNameConfidence;
@@ -47,15 +47,14 @@ public class BillOfLading {
 		this.shipFromML = shipFromML;
 		this.shipFromConfidence = shipFromConfidence;
 	}
-
-
-
+	
+    @JsonProperty("GUID")
 	public String getGUID() {
 		return GUID;
 	}
 
-	public void setGUID(String gUID) {
-		GUID = gUID;
+	public void setGUID(String GUID) {
+		this.GUID = GUID;
 	}
 
 	public String getLoadNo() {
@@ -82,12 +81,13 @@ public class BillOfLading {
 		this.date = date;
 	}
 
+    @JsonProperty("BOLID")
 	public String getBOLID() {
 		return BOLID;
 	}
 
-	public void setBOLID(String bOLID) {
-		BOLID = bOLID;
+	public void setBOLID(String BOLID) {
+		this.BOLID = BOLID;
 	}
 
 	public String getReceiverName() {
@@ -184,8 +184,6 @@ public class BillOfLading {
 
 	public void setShipFromConfidence(String shipFromConfidence) {
 		this.shipFromConfidence = shipFromConfidence;
-	}
-	
-	
+	}	
 
 }

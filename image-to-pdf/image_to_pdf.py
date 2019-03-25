@@ -1,5 +1,4 @@
 from flask import Flask, request, Response, jsonify
-import cv2
 import os
 import base64
 import img2pdf
@@ -22,7 +21,11 @@ def img_to_pdf():
     request_json = request.get_json()
     pages = request_json.get('pages')
     filename = request_json.get('filename')
-    url = request_json.get('object_store_api')
+    folder = request_json.get('folder')
+    api = request_json.get('object_store_api')
+    upload_object_path = '/api/uploadObject?path=' + folder
+    if folder != '':
+        upload_object_path += '/'
 
     pagescontent = []
     for page in pages:        
@@ -30,13 +33,14 @@ def img_to_pdf():
     
     pdfdata = img2pdf.convert(pagescontent)
 
-    file = open(filename + '.pdf', 'wb')
+    file = open(filename, 'wb')
     file.write(pdfdata)
 
-    file = open(filename + '.pdf', 'rb')
+    file = open(filename, 'rb')
     files = {'file': file}
-    res = requests.post(url, files=files)
-    return str(res.status_code)
+    res = requests.post(api + upload_object_path, files=files)
+    os.remove(filename);
+    return res.text
 
 if __name__ == '__main__':
 	if cf_port is None:

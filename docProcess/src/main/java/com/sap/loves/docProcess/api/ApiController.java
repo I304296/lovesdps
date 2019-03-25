@@ -28,7 +28,7 @@ public class ApiController {
 	
 	@PostMapping(	consumes = {MediaType.APPLICATION_JSON_VALUE},
 					produces = {MediaType.APPLICATION_JSON_VALUE}	)
-	public LoadReturn doPost(@RequestBody Load requestedLoad) {
+	public Message doPost(@RequestBody Load requestedLoad) {
 		Message returnMessage = new Message(200,"ok");
 		
 		try {
@@ -42,8 +42,8 @@ public class ApiController {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}*/
-		LoadReturn responseLoad = new LoadReturn(requestedLoad, returnMessage);
-		return responseLoad;
+//		LoadReturn responseLoad = new LoadReturn(returnMessage);
+		return returnMessage;
 	}
 	
 	//Dummy implementation
