@@ -165,19 +165,19 @@ public class ProcessDocuments {
 			documentType = context.getLoad().getDocuments()[context.getIndex()].getDocumentType();
 		}
 
-		fileName = context.getLoad().getDebtorName() + "_" + context.getLoad().getLoadNo() + "_"
+		fileName = (context.getLoad().getDebtorName()).replaceAll(" ", "-") + "-" + context.getLoad().getLoadNo() + "-"
 				+ context.getLoad().getDate();
 
 		if (context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("MISC")) {
 			// Add file extension for MISC files
-			fileName += "_MISC" + String.valueOf(context.getMiscCounter()) + "." + context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat();
+			fileName += "-MISC" + String.valueOf(context.getMiscCounter()) + "." + context.getLoad().getDocuments()[context.getIndex()].getPages()[0].getDocumentFormat().toLowerCase();
 			documentType += String.valueOf(context.getMiscCounter());
 			fileName = miscFolder + "/" + fileName;
 		} else {
 			if(context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("BOL")) {
-				fileName = bolFolder + "/" + documentType + "_" + fileName + ".pdf";
+				fileName = bolFolder + "/" + documentType + "-" + fileName + ".pdf";
 			}else if(context.getLoad().getDocuments()[context.getIndex()].getDocumentType().equals("RC")) {
-				fileName = rcFolder + "/" + documentType + "_" + fileName + ".pdf";
+				fileName = rcFolder + "/" + documentType + "-" + fileName + ".pdf";
 			}
 			List<String> filenames = this.load.getFilenames();
 			// log.info("Log No." + String.valueOf(context.counter) + ": current file list "
@@ -187,9 +187,9 @@ public class ProcessDocuments {
 			filenames.add(fileName);
 			this.load.setFilenames(filenames);
 
-			// combined name = debtorName + LoadNo + Date + "_" + debotName ....
+			// combined name = debtorName + LoadNo + Date + "-" + debotName ....
 			String stitchedPdfName = this.load.getStitchedPdfName();
-			stitchedPdfName += documentType + "_";
+			stitchedPdfName += documentType + "-";
 			this.load.setStitchedPdfName(stitchedPdfName);
 		}
 

@@ -41,7 +41,7 @@ public class PDFStitchingService implements IServer {
 			files += "{\"name\":\"" + filenames.get(i) + "\"},";
 		}
 		files = files.substring(0, files.length() - 1) + "]";
-		stitchedPdfName += context.getLoad().getDebtorName() + "_" + context.getLoad().getLoadNo() + "_"
+		stitchedPdfName += (context.getLoad().getDebtorName()).replaceAll(" ", "-") + "-" + context.getLoad().getLoadNo() + "-"
 				+ context.getLoad().getDate() + ".pdf";
 
 		// log.info("Log No." + String.valueOf(context.counter) + " files: " + files);

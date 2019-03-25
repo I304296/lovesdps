@@ -1,7 +1,7 @@
 ---
 applications:
 - name: lovesdps
-  host: lovesdps-dev
+  host: lovesdps-id-dev
   path: ./target/docProcess-0.0.1-SNAPSHOT.jar
   memory: 1024M
   instances: 1
