@@ -1,6 +1,15 @@
 package com.sap.loves.docProcess.api;
 
 import java.io.IOException;
+
+/**************************************************************
+ * 
+ * @author I304296
+ * Basic Authentication Configuration
+ * 
+ * 
+ *************************************************************/
+
 import java.io.PrintWriter;
 
 import javax.servlet.ServletException;
@@ -25,7 +34,7 @@ public class CustomBasicAuthenticationEntryPoint extends BasicAuthenticationEntr
     }
     @Override
     public void afterPropertiesSet() throws Exception {
-        setRealmName("MY_TEST_REALM");
+        setRealmName("DPS_REALM");
         super.afterPropertiesSet();
     }
 }

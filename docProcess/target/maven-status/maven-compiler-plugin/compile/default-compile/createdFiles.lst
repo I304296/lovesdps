@@ -7,7 +7,10 @@ com\sap\loves\docProcess\comm\RemoteCall.class
 com\sap\loves\docProcess\pojo\BillOfLading.class
 com\sap\loves\docProcess\pojo\Status.class
 com\sap\loves\docProcess\comm\PDFConvertService.class
+com\sap\loves\docProcess\api\AuthorizationServerConfiguration.class
 com\sap\loves\docProcess\comm\BlurScoreService.class
+com\sap\loves\docProcess\api\OAuth2SecurityConfiguration.class
+com\sap\loves\docProcess\api\ResourceServerConfiguration.class
 com\sap\loves\docProcess\comm\RateConfirmationHANAService.class
 com\sap\loves\docProcess\api\StarterApplication.class
 com\sap\loves\docProcess\comm\TestServer.class
@@ -18,8 +21,8 @@ com\sap\loves\docProcess\pojo\RateConfirmation.class
 com\sap\loves\docProcess\pojo\Page.class
 com\sap\loves\docProcess\pojo\Load.class
 com\sap\loves\docProcess\pojo\LoadReturn.class
-com\sap\loves\docProcess\api\ConfigRestSecurity.class
 com\sap\loves\docProcess\comm\PDFStitchingService.class
+com\sap\loves\docProcess\api\AuthTokenInfo.class
 com\sap\loves\docProcess\comm\IServer.class
 com\sap\loves\docProcess\pojo\Document.class
 com\sap\loves\docProcess\comm\BillOfLadingHANAService.class

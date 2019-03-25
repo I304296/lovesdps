@@ -17,11 +17,15 @@ C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\pojo\LoadReturn.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\pojo\Message.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\api\CustomBasicAuthenticationEntryPoint.java
+C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\api\AuthorizationServerConfiguration.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\pojo\Page.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\comm\BillOfLadingHANAService.java
+C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\api\OAuth2SecurityConfiguration.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\api\StarterApplication.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\utility\DestinationProxy.java
+C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\api\ResourceServerConfiguration.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\pojo\BillOfLading.java
+C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\api\AuthTokenInfo.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\api\ConfigRestSecurity.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\comm\BlurScoreService.java
 C:\Users\i304296\git\lovesdps\docProcess\src\main\java\com\sap\loves\docProcess\comm\ContrastEnhanceService.java
