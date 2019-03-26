@@ -34,7 +34,7 @@ public class PDFStitchingService implements IServer {
 		List<String> filenames = context.getLoad().getFilenames();
 
 		String files = "[";
-		String stitchedPdfName = context.getLoad().getStitchedPdfName();
+		String stitchedPdfName = "M-" + context.getLoad().getStitchedPdfName();
 		for (int i = 0; i < filenames.size(); i++) {
 //			log.info("Log No." + String.valueOf(context.counter) + " " + filenames.get(i) + " stitched!");
 			// stitchedPdfName += filenames.get(i) + "_";
